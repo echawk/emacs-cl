@@ -185,6 +185,12 @@
 	      (if (eval-when-compile (featurep 'xemacs))
 		  list
 		  `(load-time-value ,list)))
+	     (assignments
+	      (let ((i -1))
+		(mapcar (lambda (var)
+			  (setq i (1+ i))
+			  `((eql ,temp ,i) (setq ,var ,val)))
+			vars)))
 	     (body
 	      `((while ,rest-sym
 		  (let ((,temp (position (pop ,rest-sym) ,keyword-list)) ,val)
@@ -193,8 +199,7 @@
 		    (when (null ,rest-sym)
 		      (ERROR 'PROGRAM-ERROR))
 		    (setq ,val (pop ,rest-sym))
-		    (when ,temp
-		      (set (nth ,temp ',vars) ,val))))
+		    (cond ,@assignments)))
 		,@(mappend (lambda (var default)
 			     `((when (eq ,var ',unbound)
 				 (setq ,var

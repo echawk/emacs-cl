@@ -22,14 +22,17 @@
 
 (defun symcat (&rest string-designators)
   (let ((sym (intern (apply #'strcat string-designators))))
-    (when (fboundp 'SYMBOL-PACKAGE)
-      (setf (SYMBOL-PACKAGE sym) *PACKAGE*))
+    (when (and (boundp '*symbol-package-table*)
+	       (boundp '*PACKAGE*))
+      (puthash sym *PACKAGE* *symbol-package-table*))
     sym))
 
 (defun cl:symcat (&rest string-designators)
   (let ((sym (INTERN (apply #'strcat string-designators))))
     ;(when (fboundp 'SYMBOL-PACKAGE)
-      (setf (SYMBOL-PACKAGE sym) *PACKAGE*);)
+      (when (and (boundp '*symbol-package-table*)
+		 (boundp '*PACKAGE*))
+	(puthash sym *PACKAGE* *symbol-package-table*));)
     sym))
 
 (defun just-one (list)
@@ -42,7 +45,11 @@
   (apply #'append
    (if (null (cdr lists))
        (mapcar fn (car lists))
-       (cl-mapcar-many fn lists))))
+       (let ((result nil))
+	 (while (not (memq nil lists))
+	   (push (apply fn (mapcar #'car lists)) result)
+	   (setq lists (mapcar #'cdr lists)))
+	 (nreverse result)))))
 
 (defun vector-and-typep (object type)
   (and (vectorp object)

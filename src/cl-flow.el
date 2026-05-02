@@ -71,7 +71,9 @@
        (ERROR 'UNDEFINED-FUNCTION (kw NAME) name))
      (if (or (SPECIAL-OPERATOR-P name) (MACRO-FUNCTION name))
 	 nil
-	 (SYMBOL-FUNCTION name)))
+	 (if (fboundp 'SYMBOL-FUNCTION)
+	     (SYMBOL-FUNCTION name)
+	     (symbol-function name))))
     ((setf-name-p name)
      (let ((fn (gethash (second name) *setf-definitions*)))
        (if (null fn)
@@ -83,7 +85,7 @@
 (defsetf FDEFINITION (name) (fn)
   `(cond
     ((symbolp ,name)
-     (setf (SYMBOL-FUNCTION ,name) ,fn))
+     (fset ,name ,fn))
     ((setf-name-p ,name)
      (puthash (second ,name) ,fn *setf-definitions*))
     (t

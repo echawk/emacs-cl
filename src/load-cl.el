@@ -4,7 +4,8 @@
 ;;; Functions for loading and compiling the whole system.
 ;;; Loading this file also loads the system as a side effect.
 
-(require 'cl)
+(let ((inhibit-message t))
+  (require 'cl))
 (require 'byte-compile "bytecomp")
 
 (setq max-lisp-eval-depth 10000)
@@ -59,14 +60,53 @@
 
     "populate"))
 
+(defvar *cl-eval-buffer-files*
+  '("cl-compile"
+    "cl-objects"))
+
+(defun load-cl-file (file)
+  (if (member file *cl-eval-buffer-files*)
+      (let* ((path (locate-library (concat file ".el")))
+	     (load-file-name path)
+	     (load-in-progress t))
+	(unless path
+	  (error "Cannot find %s" file))
+	(message "Loading %s (source)..." path)
+	(with-temp-buffer
+	  (insert-file-contents path)
+	  (condition-case nil
+	      (while t
+		(eval (read (current-buffer))))
+	    (end-of-file t))))
+      (load file)))
+
 (defun load-cl ()
   (interactive)
   (let ((load-path (cons (file-name-directory load-file-name) load-path))
 	(debug-on-error t)
-	(byte-compile-warnings nil))
-    (mapc #'load *cl-files*)
-    (populate-packages)
-    (garbage-collect)))
+	(byte-compile-warnings nil)
+	(macroexp-inhibit-compiler-macros t)
+	(warning-minimum-level :error)
+	(warning-suppress-types '((obsolete))))
+    (let ((old-byte-compile-warn-obsolete
+	   (when (fboundp 'byte-compile-warn-obsolete)
+	     (symbol-function 'byte-compile-warn-obsolete)))
+	  (old-macroexp--obsolete-warning
+	   (when (fboundp 'macroexp--obsolete-warning)
+	     (symbol-function 'macroexp--obsolete-warning))))
+      (unwind-protect
+	  (progn
+	    (when old-byte-compile-warn-obsolete
+	      (fset 'byte-compile-warn-obsolete (lambda (&rest args) nil)))
+	    (when old-macroexp--obsolete-warning
+	      (fset 'macroexp--obsolete-warning (lambda (&rest args) nil)))
+	    (mapc #'load-cl-file *cl-files*)
+	    (populate-packages)
+	    (garbage-collect))
+	(when old-byte-compile-warn-obsolete
+	  (fset 'byte-compile-warn-obsolete old-byte-compile-warn-obsolete))
+	(when old-macroexp--obsolete-warning
+	  (fset 'macroexp--obsolete-warning old-macroexp--obsolete-warning))))))
 
 (defun compile-cl ()
   (interactive)
