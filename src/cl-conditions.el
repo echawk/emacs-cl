@@ -5,7 +5,7 @@
 
 (defvar *condition-constructors* (make-hash-table))
 
-(defmacro* DEFINE-CONDITION (name parents slots &rest options)
+(defmacro DEFINE-CONDITION (name parents slots &rest options)
   ;(with-gensyms (constructor)
   (let ((constructor (symcat "condition-constructor-" name)))
     `(progn

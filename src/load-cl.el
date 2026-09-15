@@ -62,7 +62,8 @@
 
 (defvar *cl-eval-buffer-files*
   '("cl-compile"
-    "cl-objects"))
+    "cl-objects"
+    "cl-conditions"))
 
 (defun load-cl-file (file)
   (if (member file *cl-eval-buffer-files*)
@@ -78,7 +79,8 @@
 	      (while t
 		(eval (read (current-buffer))))
 	    (end-of-file t))))
-      (load file)))
+    (load file)
+    (message "Loaded %s..." file)))
 
 (defun load-cl ()
   (interactive)

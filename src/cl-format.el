@@ -371,7 +371,7 @@
     (type-error format 'STRING))
   ;; TODO: better implementation
   (let ((env (augment-environment nil :variable '(format))))
-    (setf (lexical-value 'format env) format)
+    (set-lexical-value 'format env format)
     (enclose '(LAMBDA (*STANDARD-OUTPUT* &REST args)
 	        (APPLY (FUNCTION FORMAT) T format args)
 	        nil)

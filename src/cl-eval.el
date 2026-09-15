@@ -96,7 +96,7 @@
 (defun lexical-variable-p (var env)
   (eq (nth-value 0 (variable-information var env)) :lexical))
 
-(defun special-variable-p (var env)
+(defun cl-special-variable-p (var env)
   (not (lexical-variable-p var env)))
 
 ;;; TODO: let* bindings shouldn't be evaluated in an environment where
@@ -114,7 +114,7 @@
 						    (second binding)
 						    (or old-env new-env))))
 	  (if (lexical-variable-p var new-env)
-	      (setf (lexical-value var new-env) val)
+	      (set-lexical-value var new-env val)
 	      (progn
 		(push (if (boundp var) (symbol-value var) unbound) oldvals)
 		(setf (symbol-value var) val)))))
@@ -275,7 +275,7 @@
 	(ERROR "Setting non-symbol ~S" var))
       (setq lastval
 	    (ecase (nth-value 0 (variable-information var env))
-	      (:lexical		(setf (lexical-value var env) val))
+	      (:lexical		(set-lexical-value var env val))
 	      (:special		(set var val))
 	      ((nil)		(WARN "Setting undefined variable ~S" var)
 				(set var val))
@@ -290,9 +290,10 @@
     (let ((new-env (augment-environment env :symbol-macro
 					(mapcar #'first macros))))
       (dolist (macro macros)
-	(setf (lexical-value (first macro) new-env)
-	      (enclose `(LAMBDA (form env) (QUOTE ,(second macro)))
-		       env (first macro))))
+	(set-lexical-value
+	 (first macro) new-env
+	 (enclose `(LAMBDA (form env) (QUOTE ,(second macro)))
+		  env (first macro))))
       (eval-body body new-env))))
 
 (defun go-tag-p (object)
@@ -352,6 +353,10 @@
 
 (defun lexical-value (var env)
   (cdr (assq var (aref env 3))))
+
+(defun set-lexical-value (var env val)
+  (setcdr (assq var (aref env 3)) val)
+  val)
 
 (defsetf lexical-value (var env) (val)
   `(setf (cdr (assq ,var (aref ,env 3))) ,val))
@@ -456,6 +461,8 @@
     ((subrp fn)
      (let ((string (prin1-to-string fn)))
        (substring string 7 (1- (length string)))))
+    ((functionp fn)
+     "")
     ((listp fn)
      "")
     (t
@@ -472,6 +479,8 @@
     ((byte-code-function-p fn)
      name)
     ((subrp fn)
+     name)
+    ((functionp fn)
      name)
     ((listp fn)
      name)
@@ -518,31 +527,31 @@
 	  (:required
 	   (unless args
 	     (ERROR "No value for required parameter."))
-	   (setf (lexical-value var new-env) (pop args)))
+	   (set-lexical-value var new-env (pop args)))
 	  (&OPTIONAL
 	   (when supplied
-	     (setf (lexical-value supplied new-env) args))
-	   (setf (lexical-value var new-env)
-		 (if args
-		     (pop args)
-		     (eval-with-env default env))))
+	     (set-lexical-value supplied new-env args))
+	   (set-lexical-value var new-env
+			      (if args
+				  (pop args)
+				(eval-with-env default env))))
 	  (&REST
-	   (setf (lexical-value var new-env) (copy-list args))
+	   (set-lexical-value var new-env (copy-list args))
 	   (unless (memq '&KEY lambda-list)
 	     (setq args nil)))
 	  (&KEY
 	   (let ((arg (memq key args)))
 	     (cond
 	       (arg
-		(setf (lexical-value var new-env) (second arg))
-		(when supplied (setf (lexical-value supplied new-env) 'T))
+		(set-lexical-value var new-env (second arg))
+		(when supplied (set-lexical-value supplied new-env 'T))
 		(remf args (first arg)))
 	       (t
-		(setf (lexical-value var new-env) (eval-with-env default env))
-		(when supplied (setf (lexical-value supplied new-env) nil))))))
+		(set-lexical-value var new-env (eval-with-env default env))
+		(when supplied (set-lexical-value supplied new-env nil))))))
 	  (&AUX
-	   (setf (lexical-value var new-env)
-		 (eval-with-env default new-env)))))
+	   (set-lexical-value var new-env
+			      (eval-with-env default new-env)))))
       (when (and args (not (or allow-other-keys-p
 			       (memq (kw ALLOW-OTHER-KEYS) args))))
 	(ERROR 'PROGRAM-ERROR))
@@ -616,9 +625,11 @@
     (t		(ERROR "Error: ~A ~S" error args))))
 
 (defun EVAL (form)
-  (let ((debug-on-error t)
-	(debug-on-quit t)
-	(debug-on-signal t)
+  (let ((debug-on-error nil)
+	(debug-on-quit nil)
+	(debug-on-signal nil)
 	(debug-ignored-errors nil)
-	(debugger 'cl-debugger))
-    (eval-with-env form nil)))
+	(byte-compile-warnings nil))
+    (condition-case args
+	(eval-with-env form nil)
+      (error (cl-debugger 'error args)))))

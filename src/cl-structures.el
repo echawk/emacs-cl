@@ -107,6 +107,40 @@
 	  (param-with-default param slots))))
      lambda-list)))
 
+(defun emacs-lambda-list (lambda-list)
+  (mapcar
+   (lambda (parameter)
+     (cond
+       ((eq parameter '&KEY) '&key)
+       ((eq parameter '&OPTIONAL) '&optional)
+       ((eq parameter '&REST) '&rest)
+       ((eq parameter '&BODY) '&body)
+       ((eq parameter '&AUX) '&aux)
+       ((eq parameter '&ALLOW-OTHER-KEYS) '&allow-other-keys)
+       (t parameter)))
+   lambda-list))
+
+(defun emacs-keyword-arguments (arguments)
+  (let (result)
+    (while arguments
+      (let ((key (pop arguments)))
+	(unless arguments
+	  (error "Missing value for keyword %s" key))
+	(push (intern (concat ":" (symbol-name key))) result)
+	(push (pop arguments) result)))
+    (nreverse result)))
+
+(defun native-constructor-definition (constructor body)
+  (let ((name (first constructor))
+	(lambda-list (second constructor)))
+    (if (eq (first lambda-list) '&KEY)
+	(let ((native-name (make-symbol (concat "--" (symbol-name name) "--"))))
+	  `(progn
+	     (cl-defun ,native-name ,(emacs-lambda-list lambda-list) ,body)
+	     (defun ,name (&rest arguments)
+	       (apply #',native-name (emacs-keyword-arguments arguments)))))
+      `(cl-defun ,name ,(emacs-lambda-list lambda-list) ,body))))
+
 (defun slot-name-or-initval (slot constructor)
   (let ((name (slot-name slot))
 	(initval (slot-initval slot))
@@ -121,7 +155,7 @@
 
 
 ;;; The defstruct macro proper.
-(defmacro* DEFSTRUCT (name &rest slots)
+(defmacro DEFSTRUCT (name &rest slots)
   (multiple-value-bind (name options) (if (consp name)
 					  (values (first name) (rest name))
 					  (values name nil))
@@ -213,8 +247,9 @@
 	;; Constructors.
 	,@(mapcar
 	    (lambda (constructor)
-	      `(cl:defun ,@constructor
-		 ,(ecase type
+	      (native-constructor-definition
+	       constructor
+	       (ecase type
 		    ((nil)
 		     `(let ((object (make-vector ,struct-size ',name)))
 		        ,@(let ((index initial-offset))
@@ -238,7 +273,7 @@
 		    (list
 		     `(list ,@(make-list initial-offset nil)
 		            ,@(when named (list (list 'quote name)))
-		            ,@(mapcar (lambda (slot)
+			    ,@(mapcar (lambda (slot)
 					(slot-name-or-initval
 					 slot constructor))
 				      slots))))))
@@ -261,7 +296,7 @@
 		       (struct-subtypep ,get-type ',name))))))
 
 	;; Remember information about the slots.
-	(setf (struct-slots ',name) ',slots)
+	(puthash ',name (cons nil ',slots) *structure-info*)
 
 	;; Register the structure as a subtype of an included structure,
 	,@(when include

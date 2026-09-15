@@ -16,20 +16,27 @@
 	(and (consp object)
 	     (eq (car object) 'lambda)))))
 
+(defun call-emacs-function (fn args)
+  (condition-case error-data
+      (apply fn args)
+    (error
+     (if (fboundp 'cl-debugger)
+	 (cl-debugger 'error error-data)
+	 (signal (car error-data) (cdr error-data))))))
+
 (defun APPLY (fn &rest args)
   (cond
     ((COMPILED-FUNCTION-P fn)
-     (cond
-       ((null args)		(funcall fn))
-       ((null (rest args))	(apply fn (first args)))
-       (t			(apply #'apply fn args))))
+     (call-emacs-function fn
+			  (append (butlast args) (car (last args)))))
     ((INTERPRETED-FUNCTION-P fn)
      (eval-lambda-expr (interp-fn-lambda-exp fn)
 		       (append (butlast args)
 			       (car (last args)))
 		       (interp-fn-env fn)))
     ((functionp fn)
-     (apply #'apply fn args))
+     (call-emacs-function fn
+			  (append (butlast args) (car (last args)))))
     ((or (symbolp fn) (consp fn))
      (apply #'APPLY (FDEFINITION fn) args))
     (t
@@ -51,8 +58,15 @@
 				  ,@body))))))
 
 (defun set-fun (name fn)
-  (setf (FDEFINITION name) fn)
-  (setf (function-name fn) name)
+  (cond
+    ((symbolp name)
+     (fset name fn))
+    ((setf-name-p name)
+     (puthash (second name) fn *setf-definitions*))
+    (t
+     (not-function-name-error name)))
+  (when (fboundp 'set-function-name)
+    (set-function-name fn name))
   name)
 
 (defun setf-name-p (name)
@@ -118,13 +132,13 @@
 (defun FUNCALL (fn &rest args)
   (cond
     ((COMPILED-FUNCTION-P fn)
-     (apply fn args))
+     (call-emacs-function fn args))
     ((INTERPRETED-FUNCTION-P fn)
      (eval-lambda-expr (interp-fn-lambda-exp fn)
 		       args
 		       (interp-fn-env fn)))
     ((functionp fn)
-     (apply fn args))
+     (call-emacs-function fn args))
     (t
      (APPLY (FDEFINITION fn) args))))
 
@@ -142,7 +156,8 @@
 (defun FUNCTIONP (object)
   (or (byte-code-function-p object)
       (subrp object)
-      (INTERPRETED-FUNCTION-P object)))
+      (INTERPRETED-FUNCTION-P object)
+      (functionp object)))
 
 (defun COMPILED-FUNCTION-P (object)
   (or (byte-code-function-p object)
@@ -379,33 +394,38 @@
 (defun COMPLEMENT (fn)
   (let ((env (augment-environment nil :variable '(fn)))
 	(name "complemented function"))
-    (setf (lexical-value 'fn env) fn)
+    (set-lexical-value 'fn env fn)
     (enclose '(LAMBDA (&REST args) (NOT (APPLY fn args))) env name)))
 
 (defun CONSTANTLY (value)
   (let ((env (augment-environment nil :variable '(value))))
-    (setf (lexical-value 'value env) value)
+    (set-lexical-value 'value env value)
     (enclose '(LAMBDA (&REST x) value) env
 	     (format "\"constantly %s\"" (PRIN1-TO-STRING value)))))
 
 (defun EVERY (predicate &rest sequences)
-  (catch 'EVERY
-    (apply #'MAP nil
-	   (lambda (&rest elts)
-	     (unless (APPLY predicate elts)
-	       (throw 'EVERY nil)))
-	   sequences)
-    T))
+  (let ((i 0)
+	(length (apply #'min (mapcar #'LENGTH sequences))))
+    (catch 'EVERY
+      (while (< i length)
+	(unless (APPLY predicate
+		       (mapcar (lambda (sequence) (ELT sequence i)) sequences))
+	  (throw 'EVERY nil))
+	(setq i (1+ i)))
+      T)))
 
 (defun SOME (predicate &rest sequences)
-  (catch 'SOME
-    (apply #'MAP nil
-	   (lambda (&rest elts)
-	     (let ((val (APPLY predicate elts)))
-	       (when val
-		 (throw 'SOME val))))
-	   sequences)
-    nil))
+  (let ((i 0)
+	(length (apply #'min (mapcar #'LENGTH sequences))))
+    (catch 'SOME
+      (while (< i length)
+	(let ((value
+	       (APPLY predicate
+		      (mapcar (lambda (sequence) (ELT sequence i)) sequences))))
+	  (when value
+	    (throw 'SOME value)))
+	(setq i (1+ i)))
+      nil)))
 
 (defun NOTEVERY (predicate &rest sequences)
   (not (apply #'EVERY predicate sequences)))

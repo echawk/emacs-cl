@@ -12,7 +12,7 @@
       *DEBUG-IO* *TERMINAL-IO*)
 
 (defun batch-repl ()
-  (loop
+  (while t
    (FORMAT T "~%~A> " (PACKAGE-NAME *PACKAGE*))
    (dolist (x (emacs-cl-eval-interactively (READ)))
      (PPRINT x))))

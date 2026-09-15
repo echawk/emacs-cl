@@ -60,18 +60,19 @@
 	    (push (gensym) (cddr lambda-list)))
 	  (setq form `(cdr ,fvar)))
       (unless (null lambda-list)
-	(setq body `((destructuring-bind ,lambda-list ,form ,@body))))
+	(setq body `((cl-destructuring-bind ,lambda-list ,form ,@body))))
       `(lambda (,fvar ,evar) ,@body))))
 
-(defmacro* cl:defmacro (name lambda-list &body body)
+(defmacro cl:defmacro (name lambda-list &rest body)
   (when byte-compile-warnings
     (byte-compile-log-1 (format "cl:defmacro %s" name)))
   `(progn
      (unless (fboundp ',name)
        (fset ',name nil))
-     (setf (MACRO-FUNCTION ',name)
-           ,(make-macro-el-function name lambda-list body))
-    ',name))
+     (puthash ',name
+	      ,(make-macro-el-function name lambda-list body)
+	      *macro-functions*)
+     ',name))
 
 (cl:defmacro DEFMACRO (name lambda-list &body body)
   `(EVAL-WHEN (,(kw COMPILE-TOPLEVEL) ,(kw LOAD-TOPLEVEL) ,(kw EXECUTE))

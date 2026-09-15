@@ -36,31 +36,24 @@
   (vector metaclass (vector name superclasses slots
 			    nil nil nil nil nil nil nil)))
 
-(let ((fn (vector)))
-  (defconst +gf-template+
-    (byte-compile `(lambda (&rest args) (apply ,fn args))))
-  (defconst +gf-template-fn-pos+
-    (position fn (cfref +gf-template+ 2))))
+(defvar *funcallable-object-states* (make-hash-table :test #'eq))
+
+(defun call-funcallable-object (state &rest args)
+  (apply (aref state 0) args))
 
 ;;; Potential generic-function slots:
 ;; name lambda-list declarations
 ;; methods method-class method-combination
 ;; arguments-precedence-order
 (defun make-gf (name lambda-list)
-  (let* ((placeholder (list))
- 	 (fn (COMPILE nil `(LAMBDA (&REST args)
- 			     (APPLY (FUNCTION NO-APPLICABLE-METHOD)
- 			            ,placeholder args))))
-	 (index (position placeholder (cfref fn 2)))
-	 (gf (make-byte-code (cfref +gf-template+ 0)
-			     (cfref +gf-template+ 1)
-			     (copy-sequence (cfref +gf-template+ 2))
-			     (cfref +gf-template+ 3))))
-    (SET-FUNCALLABLE-INSTANCE-FUNCTION gf fn)
-    (aset (cfref fn 2) index gf)
-    (setf (gethash gf *funcallable-objects*)
-	  (cons 'STANDARD-GENERIC-FUNCTION
-		(vector name lambda-list nil)))
+  (let* ((state (vector nil))
+	 (gf (apply-partially #'call-funcallable-object state)))
+    (aset state 0 (apply-partially #'NO-APPLICABLE-METHOD gf))
+    (puthash gf state *funcallable-object-states*)
+    (puthash gf
+	     (cons 'STANDARD-GENERIC-FUNCTION
+		   (vector name lambda-list nil))
+	     *funcallable-objects*)
     (cl:values gf)))
 
 (defvar *funcallable-objects* (make-hash-table :test #'eq))
@@ -101,36 +94,42 @@
 (defun ENSURE-CLASS (name &rest keys)
   (apply #'ENSURE-CLASS-USING-CLASS (FIND-CLASS name nil) name keys))
 
+(defun standard-class-instance-p (name object env)
+  (and (vectorp object)
+       (subclassp (CLASS-OF object) (FIND-CLASS name))))
+
+(defun structure-class-instance-p (name object env)
+  (and (vectorp object)
+       (struct-subtypep (aref object 0) name)))
+
 ;;; MOP
-(cl:defun ENSURE-CLASS-USING-CLASS (class name &KEY
-				    DIRECT-SUPERCLASSES
-				    DIRECT-SLOTS
-				    DIRECT-DEFAULT-INITARGS
-				    (METACLASS 'STANDARD-CLASS))
-  (when (some #'built-in-class-p DIRECT-SUPERCLASSES)
-    (ERROR "Can't make subclass of a built-in class."))
-  (unless (symbolp METACLASS)
-    (setq METACLASS (CLASS-NAME METACLASS)))
-  (unless (eq METACLASS 'BUILT-IN-CLASS)
-    (setq *subtypep-objects* (nconc *subtypep-objects* (list (vector name)))))
-  (case METACLASS
-    (BUILT-IN-CLASS)	;Do nothing.
-    (STANDARD-CLASS
-     (ensure-type name
-		  (byte-compile
-		   `(lambda (object env)
-		      (and (vectorp object)
-			   (subclassp (CLASS-OF object)
-				      (FIND-CLASS ',name)))))))
-    (STRUCTURE-CLASS
-     (ensure-type name
-		  (byte-compile
-		   `(lambda (obj env)
-		     (and (vectorp obj)
-		          (struct-subtypep (aref obj 0) ',name)))))))
-  (let ((class (make-class METACLASS name DIRECT-SUPERCLASSES DIRECT-SLOTS)))
-    (puthash name class *classes*)
-    class))
+(defun ENSURE-CLASS-USING-CLASS (class name &rest keys)
+  (let ((DIRECT-SUPERCLASSES
+	 (plist-get keys (kw DIRECT-SUPERCLASSES)))
+	(DIRECT-SLOTS
+	 (plist-get keys (kw DIRECT-SLOTS)))
+	(DIRECT-DEFAULT-INITARGS
+	 (plist-get keys (kw DIRECT-DEFAULT-INITARGS)))
+	(METACLASS
+	 (or (plist-get keys (kw METACLASS)) 'STANDARD-CLASS)))
+    (when (some #'built-in-class-p DIRECT-SUPERCLASSES)
+      (ERROR "Can't make subclass of a built-in class."))
+    (unless (symbolp METACLASS)
+      (setq METACLASS (CLASS-NAME METACLASS)))
+    (unless (eq METACLASS 'BUILT-IN-CLASS)
+      (setq *subtypep-objects*
+	    (nconc *subtypep-objects* (list (vector name)))))
+    (cond
+      ((eq METACLASS 'STANDARD-CLASS)
+       (ensure-type name
+		    (apply-partially #'standard-class-instance-p name)))
+      ((eq METACLASS 'STRUCTURE-CLASS)
+       (ensure-type name
+		    (apply-partially #'structure-class-instance-p name))))
+    (let ((class
+	   (make-class METACLASS name DIRECT-SUPERCLASSES DIRECT-SLOTS)))
+      (puthash name class *classes*)
+      class)))
 
 ;;; MOP
 (defun CLASS-DIRECT-SUPERCLASSES (class)
@@ -305,7 +304,7 @@
   (eq (CLASS-OF class) +built-in-class+))
 
 (defun funcallable-object-p (object)
-  (and (COMPILED-FUNCTION-P object)
+  (and (functionp object)
        (gethash object *funcallable-objects*)))
 
 (defun generic-function-p (object &optional env)
@@ -317,17 +316,18 @@
 ;;; TODO: Standard Generic Function FUNCTION-KEYWORDS
 
 ;;; MOP
-(cl:defun ENSURE-GENERIC-FUNCTION-USING-CLASS (gf name &KEY LAMBDA-LIST)
-  (cond
-    ((null gf)
-     (setq gf (make-gf name LAMBDA-LIST))
-     (set-fun name gf))
-    (*DEBUG-IO*
-     (FRESH-LINE *DEBUG-IO*)
-     (WRITE-STRING "Redefinition of generic function " *DEBUG-IO*)
-     (WRITE-STRING (SYMBOL-NAME (gf-name gf)) *DEBUG-IO*)
-     (WRITE-STRING " not properly implemented." *DEBUG-IO*)))
-  gf)
+(defun ENSURE-GENERIC-FUNCTION-USING-CLASS (gf name &rest keys)
+  (let ((LAMBDA-LIST (plist-get keys (kw LAMBDA-LIST))))
+    (cond
+      ((null gf)
+       (setq gf (make-gf name LAMBDA-LIST))
+       (set-fun name gf))
+      (*DEBUG-IO*
+       (FRESH-LINE *DEBUG-IO*)
+       (WRITE-STRING "Redefinition of generic function " *DEBUG-IO*)
+       (WRITE-STRING (SYMBOL-NAME (gf-name gf)) *DEBUG-IO*)
+       (WRITE-STRING " not properly implemented." *DEBUG-IO*)))
+    gf))
 
 (defun gf-or-error (name)
   (when (FBOUNDP name)
@@ -419,7 +419,17 @@
       (t
        (SLOT-VALUE-USING-CLASS class object slot)))))
 
-(DEFSETF SLOT-VALUE set-slot-value)
+(defun slot-value-setf-expander (form env)
+  (let* ((args (rest form))
+	 (temporary-values (map-to-gensyms args))
+	 (value (gensym)))
+    (cl:values temporary-values
+	       args
+	       (list value)
+	       (append '(set-slot-value) temporary-values (list value))
+	       (cons 'SLOT-VALUE temporary-values))))
+
+(puthash 'SLOT-VALUE #'slot-value-setf-expander *setf-expanders*)
 
 (defun set-slot-value (object slot value)
   (let ((class (CLASS-OF object)))
@@ -520,27 +530,35 @@
 (defun EXTRACT-LAMBDA-LIST (lambda-list)
   (let* ((lambda-list (copy-list lambda-list))
 	 (not-required (MEMBER-IF #'lambda-list-keyword-p lambda-list))
-	 (required (LDIFF lambda-list not-required)))
-    (append
-     (mapcar (lambda (x)
-	       (typecase x
-		 (symbol	x)
-		 (cons		(car x))
-		 (t		(type-error x '(OR SYMBOL CONS)))))
-	     required)
-     not-required)))
+	 (required (LDIFF lambda-list not-required))
+	 (result nil))
+    (while required
+      (let ((parameter (pop required)))
+	(cond
+	  ((symbolp parameter)
+	   (push parameter result))
+	  ((consp parameter)
+	   (push (car parameter) result))
+	  (t
+	   (type-error parameter '(OR SYMBOL CONS))))))
+    (append (nreverse result) not-required)))
 
 ;;; MOP
 (defun EXTRACT-SPECIALIZER-NAMES (lambda-list)
   (let* ((lambda-list (copy-list lambda-list))
 	 (required (LDIFF lambda-list
-			  (MEMBER-IF #'lambda-list-keyword-p lambda-list))))
-    (mapcar (lambda (x)
-	      (typecase x
-		(symbol		'T)
-		(cons		(second x))
-		(t		(type-error x '(OR SYMBOL CONS)))))
-	    required)))
+			  (MEMBER-IF #'lambda-list-keyword-p lambda-list)))
+	 (result nil))
+    (while required
+      (let ((parameter (pop required)))
+	(cond
+	  ((symbolp parameter)
+	   (push 'T result))
+	  ((consp parameter)
+	   (push (second parameter) result))
+	  (t
+	   (type-error parameter '(OR SYMBOL CONS))))))
+    (nreverse result)))
 
 (defun specializer (name)
   (cond
@@ -565,15 +583,15 @@
   (vector 'EQL-SPECIALIZER (vector object)))
 
 (defun ensure-method (name lambda-list forms)
-  (MULTIPLE-VALUE-BIND (body decls doc) (parse-body forms t)
-    (let ((gf (ENSURE-GENERIC-FUNCTION name (kw LAMBDA-LIST) lambda-list))
-	  (method (make-method
-		   (EXTRACT-LAMBDA-LIST lambda-list)
-		   (mapcar #'specializer
-			   (EXTRACT-SPECIALIZER-NAMES lambda-list))
-		   body)))
-      (ADD-METHOD gf method)
-      method)))
+  (let* ((body (parse-body forms t))
+	 (gf (ENSURE-GENERIC-FUNCTION name (kw LAMBDA-LIST) lambda-list))
+	 (method (make-method
+		  (EXTRACT-LAMBDA-LIST lambda-list)
+		  (mapcar #'specializer
+			  (EXTRACT-SPECIALIZER-NAMES lambda-list))
+		  body)))
+    (ADD-METHOD gf method)
+    method))
 
 ;;; TODO: Accessor FIND-CLASS
 (cl:defun FIND-CLASS (name &OPTIONAL (errorp t) env)
@@ -596,13 +614,13 @@
 
 ;;; MOP
 (defun SET-FUNCALLABLE-INSTANCE-FUNCTION (gf fn)
-  (aset (cfref gf 2) +gf-template-fn-pos+ fn))
+  (aset (gethash gf *funcallable-object-states*) 0 fn))
 
 ;;; TODO: Standard Generic Function ADD-METHOD
 (defun ADD-METHOD (gf method)
   ;; (i)
-  (push method (gf-methods gf))
-  (setf (method-generic-function method) gf)
+  (aset (gf-slots gf) 2 (cons method (gf-methods gf)))
+  (aset (aref method 1) 3 gf)
   ;; (ii) (ADD-DIRECT-METHOD ...)
   ;; (iii)
   (SET-FUNCALLABLE-INSTANCE-FUNCTION gf (COMPUTE-DISCRIMINATING-FUNCTION gf))
@@ -632,20 +650,33 @@
 (defun METHOD-SPECIALIZERS (method)
   (method-specializers method))
 
+(defun method-applicable-p (method object)
+  (let ((specializer (first (method-specializers method))))
+    (if (vector-and-typep specializer 'EQL-SPECIALIZER)
+	(EQL object (EQL-SPECIALIZER-OBJECT specializer))
+      (subclassp (CLASS-OF object) specializer))))
+
+(defun ensure-method-function (method)
+  (or (method-function method)
+      (let ((fn (enclose `(LAMBDA ,(method-lambda-list method)
+				     ,@(method-body method)))))
+	(aset (aref method 1) 2 fn)
+	fn)))
+
+(defun call-discriminating-function (gf &rest args)
+  (let ((methods (sort-methods (copy-list (gf-methods gf))))
+	(method nil))
+    (while (and methods (null method))
+      (when (method-applicable-p (first methods) (first args))
+	(setq method (first methods)))
+      (setq methods (rest methods)))
+    (if method
+	(APPLY (ensure-method-function method) args)
+      (APPLY #'NO-APPLICABLE-METHOD gf args))))
+
 ;;; MOP
 (defun COMPUTE-DISCRIMINATING-FUNCTION (gf)
-  (with-gensyms (args)
-    (COMPILE nil `(LAMBDA (&REST ,args)
-		   (TYPECASE (car ,args)
-		     ,@(mapcar
-			(lambda (method)
-			  `(,(first (method-specializers method))
-			    (APPLY (LAMBDA ,(method-lambda-list method)
-				     ,@(method-body method))
-			           ,args)))
-			(sort-methods (copy-list (gf-methods gf))))
-		     (T (APPLY (FUNCTION NO-APPLICABLE-METHOD)
-			       ,gf ,args)))))))
+  (apply-partially #'call-discriminating-function gf))
 
 ;; (lambda (arg &rest rest)
 ;;   (flet ((call-next-method ()
@@ -685,15 +716,24 @@
 
 ;;; TODO: Function CLASS-OF
 (defun CLASS-OF (object)
-  (if (null object)
-      +null-class+
-      (ecase (type-of object)
+  (cond
+    ((null object)
+     +null-class+)
+    ((gethash object *funcallable-objects*)
+     (FIND-CLASS (car (gethash object *funcallable-objects*))))
+    (t
+     (ecase (type-of object)
 	;; This is supposed to be an exhaustive enumeration of all
 	;; possible return values for Emacs Lisp type-of.
 	((bit-vector bool-vector)
 			+bit-vector-class+)
 	(subr		+function-class+)
 	(compiled-function
+			(let ((info (gethash object *funcallable-objects*)))
+			  (if info
+			      (FIND-CLASS (car info))
+			      +function-class+)))
+	(interpreted-function
 			(let ((info (gethash object *funcallable-objects*)))
 			  (if info
 			      (FIND-CLASS (car info))
@@ -718,7 +758,7 @@
 	;; For now, throw an error on these.
 	((buffer char-table frame marker overlay process
 		 subr window window-configuration)
-			(error "Unknown type: %s" (type-of object))))))
+			(error "Unknown type: %s" (type-of object)))))))
 
 (defun subclassp (class1 class2)
   (or (eq class2 +t-class+)
