@@ -582,8 +582,7 @@
 			(INTERN-EQL-SPECIALIZER (second name)))
     (t			(type-error name '(OR SYMBOL CONS)))))
 
-(defconst +eql-fn+ (if (featurep 'xemacs) #'eql #'EQL))
-(defvar *eql-specializers* (make-hash-table :test +eql-fn+))
+(defvar *eql-specializers* (make-hash-table :test #'EQL))
 
 (defun INTERN-EQL-SPECIALIZER (object)
   (or (gethash object *eql-specializers*)

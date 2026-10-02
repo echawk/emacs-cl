@@ -1,4 +1,82 @@
-emacs-cl
-========
+# emacs-cl
 
-Emacs Common Lisp is an implementation of Common Lisp, written in Emacs Lisp.
+Emacs Common Lisp is an implementation of Common Lisp, written in Emacs
+Lisp. It does not yet purport to conform to the ANSI standard since, among
+other things, CLOS and pretty printing are incomplete. However, most other
+Common Lisp features like lexical closures, packages, readtables, multiple
+values, bignums, adjustable arrays, etc, are present. At this stage many
+bugs remain and error checking is sparse.
+
+This implementation provides a Common Lisp environment, separate from
+Emacs Lisp, running in Emacs. It does not intend to extend Emacs Lisp
+with Common Lisp functionality; however, Common Lisp functions compile
+to byte code, so Emacs Lisp functions can call Common Lisp functions
+and vice versa.
+
+All Emacs Lisp data can be passed unchanged to Common Lisp functions,
+except vectors, which are used to implement various Common Lisp types
+not present in Emacs Lisp. An Emacs Lisp vector should be converted
+to a Common Lisp vector by calling `cl-vector`.
+
+To convert a Common Lisp vector back to Emacs Lisp, call `el-vector`.
+Common Lisp strings and bit vectors should be converted by `el-string`
+and `el-bool-vector`.
+
+See [INSTALL](INSTALL) for usage instructions. See [HOWTO](HOWTO) for some
+hints on how to do common tasks. See [HACKING](HACKING) for notes on
+working on the implementation itself, including the test suites.
+
+Some algorithms and messages are from SBCL and Gareth McCaughan.
+
+## Internals
+
+Mapping from Emacs Lisp object types to Common Lisp object types:
+
+| EL type             | CL type          |
+|---------------------|------------------|
+| bool-vector          | simple-bit-vector |
+| compiled-function    | compiled-function |
+| cons                 | cons             |
+| float                | single-float     |
+| hash-table           | hash-table       |
+| integer              | fixnum           |
+| string               | simple-string    |
+| subr                 | compiled-function |
+| symbol               | symbol           |
+| vector               | various, type in first element |
+
+Common Lisp objects represented by Emacs Lisp vectors:
+
+```
+bignum                  [BIGNUM <n0> <n1> ...]
+ratio                   [RATIO <numerator> <denominator>]
+complex                 [COMPLEX <realpart> <imagpart>]
+character               [CHARACTER <code>]
+string                  [STRING <size> <string> <offset> <fill-pointer>]
+char-array              [char-array <dimensions> <elements> <offset>]
+bit-vector              [BIT-VECTOR <size> <elements> <offset> <fill-pointer>]
+bit-array               [bit-array <dimensions> <elements> <offset>]
+simple-vector           [SIMPLE-VECTOR <elt> ...]
+vector                  [VECTOR <size> <elements> <offset> <fill-pointer>]
+array                   [ARRAY <dimensions> <elements> <offset>]
+interpreted-function    [INTERPRETED-FUNCTION <fn> <env> <name>]
+instance of class C     [C <slot> ...]
+```
+
+## Known limitations
+
+There are problems with the `cl:function` macro when its output appears
+in compiled files:
+
+* When applied to a byte-code function the result will be printed
+  with the `#[...]` syntax. That works, but separate invocations of
+  `cl:function` will result in distinct, though equal, code vectors.
+
+* When applied to a subr, the result will be printed with the
+  `#<subr ...>` syntax, which will raise a syntax error when loaded.
+
+In general, Emacs' byte compiler doesn't preserve object identity,
+which is a problem. Here's another case:
+
+* This merges the two distinct strings into one object:
+  `(byte-compile '(lambda () (foo (copy-seq "abc") (copy-seq "abc"))))`

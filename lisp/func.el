@@ -184,13 +184,9 @@
     (when keys
       (let* ((list `(list ,@(mapcar #'load-time-symbol keys)))
 	     (keyword-list
-	      (cond
-	       ((eval-when-compile (featurep 'xemacs))
-		list)
-	       (compile-file-p
-		`(load-time-value ,list))
-	       (t
-		`(quote ,keys))))
+	      (if compile-file-p
+		  `(load-time-value ,list)
+		  `(quote ,keys)))
 	     (allow-other-keys
 	      (if compile-file-p
 		  `(kw ALLOW-OTHER-KEYS)

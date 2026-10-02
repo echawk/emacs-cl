@@ -107,9 +107,7 @@
 	  (set sym sym)
 	  sym))))
 
-(if (eval-when-compile (featurep 'xemacs))
-    (defmacro kw (name) `(keyword ,(symbol-name name)))
-    (defmacro kw (name) `(load-time-value (keyword ,(symbol-name name)))))
+(defmacro kw (name) `(load-time-value (keyword ,(symbol-name name))))
 
 (defun type-error (datum type)
   (ERROR 'TYPE-ERROR (kw DATUM) datum (kw EXPECTED-TYPE) type))

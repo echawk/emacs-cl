@@ -1,0 +1,1 @@
+emacs -Q -batch -l load-cl.el -l batch.el -l tests.el -f test-cl

@@ -1,8 +1,20 @@
 ;;;; -*- mode: emacs-lisp; lexical-binding: nil -*-
-;;;
-;;; Copyright (C) 2003, 2004 Lars Brinkhoff.
+;;; load-cl.el --- entry point for emacs-cl, a Common Lisp implementation in Emacs Lisp
+
+;; Copyright (C) 2003, 2004 Lars Brinkhoff.
+
+;; Author: Lars Brinkhoff
+;; Version: 0.5
+;; URL: https://github.com/lbrinkhoff/emacs-cl
+
+;;; Commentary:
+
+;; Loading this file loads the rest of emacs-cl as a side effect.
+;; See README.md, HOWTO, and HACKING for more.
+
+;;; Code:
+
 ;;; Functions for loading and compiling the whole system.
-;;; Loading this file also loads the system as a side effect.
 
 (let ((inhibit-message t))
   (require 'cl))
@@ -115,14 +127,6 @@
   (let ((byte-compile-warnings '(not cl-functions)))
     (dolist (file *cl-files*)
       (byte-compile-file (concat file ".el")))))
-
-(when (string-match "^19" emacs-version)
-  (dolist (x '(:required :optional-rest :weakness :type :read-only
-	       :constituent :whitespace :single-escape
-	       :multiple-escape :terminating-macro
-	       :non-terminating-macro :eof :special-operator
-	       :lexical :special :macro :symbol-macro))
-    (set x x)))
 
 (setq *global-environment*
       (vector 'environment

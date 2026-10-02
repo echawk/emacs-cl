@@ -139,39 +139,22 @@
 	 (aset new i (CHAR string i)))
        new))))
 
-(if (eval-when-compile (featurep 'xemacs))
-    (defun el-bit-vector (bit-vector)
-      (unless (BIT-VECTOR-P bit-vector)
-	(type-error bit-vector 'BIT-VECTOR))
-      (cond
-	((bit-vector-p bit-vector)
-	 bit-vector)
-	((and (eq (vector-size bit-vector)
-		  (length (vector-storage bit-vector)))
-	      (zerop (vector-offset bit-vector)))
-	 (vector-storage bit-vector))
-	(t
-	 (let* ((size (LENGTH bit-vector))
-		(new (make-bit-vector size 0)))
-	   (dotimes (i size)
-	     (aset new i (BIT bit-vector i)))
-	   new))))
-    (defun el-bool-vector (bool-vector)
-      (unless (BIT-VECTOR-P bool-vector)
-	(type-error bool-vector 'BIT-VECTOR))
-      (cond
-	((bool-vectorp bool-vector)
-	 bool-vector)
-	((and (eq (vector-size bool-vector)
-		  (length (vector-storage bool-vector)))
-	      (zerop (vector-offset bool-vector)))
-	 (vector-storage bool-vector))
-	(t
-	 (let* ((size (LENGTH bool-vector))
-		(new (make-bool-vector size 0)))
-	   (dotimes (i size)
-	     (aset new i (not (zerop (BIT bool-vector i)))))
-	   new)))))
+(defun el-bool-vector (bool-vector)
+  (unless (BIT-VECTOR-P bool-vector)
+    (type-error bool-vector 'BIT-VECTOR))
+  (cond
+    ((bool-vectorp bool-vector)
+     bool-vector)
+    ((and (eq (vector-size bool-vector)
+	      (length (vector-storage bool-vector)))
+	  (zerop (vector-offset bool-vector)))
+     (vector-storage bool-vector))
+    (t
+     (let* ((size (LENGTH bool-vector))
+	    (new (make-bool-vector size 0)))
+       (dotimes (i size)
+	 (aset new i (not (zerop (BIT bool-vector i)))))
+       new))))
 
 (cl:defun ADJUST-ARRAY (array new-dimensions
 			&KEY ELEMENT-TYPE INITIAL-ELEMENT INITIAL-CONTENTS

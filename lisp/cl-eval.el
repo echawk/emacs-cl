@@ -599,8 +599,7 @@
 		(APPLY fn args)))))))))
 
 (defun cl-debugger (&optional error args)
-  (unless (eval-when-compile (featurep 'xemacs))
-    (incf num-nonmacro-input-events))
+  (incf num-nonmacro-input-events)
   ;; error:
   ;;   lambda - function entry, debug-on-next-call
   ;;   debug - function entry, breakpoint

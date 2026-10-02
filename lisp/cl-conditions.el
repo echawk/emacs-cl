@@ -169,9 +169,7 @@
     (let ((n -1) c)
       (while (minusp n)
 	(message "Debugger command: ")
-	(case (setq c (if (eval-when-compile (featurep 'xemacs))
-			  (char-to-int (read-char-exclusive))
-			  (read-char-exclusive)))
+	(case (setq c (read-char-exclusive))
 	  ((114 48 49 50 51 52 53 54 55 56 57)
 	   (cond
 	     ((eq c 114)
