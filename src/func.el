@@ -173,6 +173,8 @@
 
 (defun keyword-assignments (lambda-list env)
   (let ((allow-other-keys-p (memq '&ALLOW-OTHER-KEYS lambda-list))
+	(compile-file-p (and (boundp '*compile-file-mode*)
+			     *compile-file-mode*))
 	(temp (gensym))
 	(allow (gensym))
 	(val (gensym))
@@ -182,9 +184,17 @@
     (when keys
       (let* ((list `(list ,@(mapcar #'load-time-symbol keys)))
 	     (keyword-list
-	      (if (eval-when-compile (featurep 'xemacs))
-		  list
-		  `(load-time-value ,list)))
+	      (cond
+	       ((eval-when-compile (featurep 'xemacs))
+		list)
+	       (compile-file-p
+		`(load-time-value ,list))
+	       (t
+		`(quote ,keys))))
+	     (allow-other-keys
+	      (if compile-file-p
+		  `(kw ALLOW-OTHER-KEYS)
+		`(quote ,(keyword "ALLOW-OTHER-KEYS"))))
 	     (assignments
 	      (let ((i -1))
 		(mapcar (lambda (var)
@@ -209,7 +219,7 @@
 			   vars defaults))))
 	(unless allow-other-keys-p
 	  (setq body
-		`((let ((,allow (cadr (memq (kw ALLOW-OTHER-KEYS) ,rest-sym))))
+		`((let ((,allow (cadr (memq ,allow-other-keys ,rest-sym))))
 		    ,@body))))
 	body))))
 

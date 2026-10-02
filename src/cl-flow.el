@@ -200,6 +200,7 @@
     (defvar ,name ,@rest)))
 
 (cl:defmacro DEFVAR (name &optional (initial-value nil valuep) documentation)
+  (pushnew name *specials*)
   `(PROGN
      (EVAL-WHEN (,(kw COMPILE-TOPLEVEL) ,(kw LOAD-TOPLEVEL) ,(kw EXECUTE))
        (DECLAIM (SPECIAL ,name)))
@@ -329,6 +330,8 @@
 	 (eq (CHAR-CODE x) (CHAR-CODE y)))
 	((and (floatp x) (floatp y))
 	 (equal x y))
+	((and (integerp x) (integerp y))
+	 (= x y))
 	((and (bignump x) (bignump y))
 	 (and (eq (length x) (length y))
 	      (every #'eq x y)))

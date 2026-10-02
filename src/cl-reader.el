@@ -702,6 +702,34 @@
 	(optimize-bq result)
 	result)))
 
+(defun collapse-nested-bq-commas (form)
+  "Collapse comma-quote-comma forms handled by an enclosing backquote."
+  (cond
+    ((and (consp form)
+	  (eq (first form) 'COMMA)
+	  (null (cddr form))
+	  (let ((quoted (second form)))
+	    (and (consp quoted)
+		 (eq (first quoted) 'QUOTE)
+		 (null (cddr quoted))
+		 (consp (second quoted))
+		 (eq (first (second quoted)) 'COMMA)
+		 (null (cddr (second quoted))))))
+     (cl:values (list 'COMMA (second (second (second form)))) t nil))
+    ((and (consp form)
+	  (memq (first form) '(BACKQUOTE COMMA COMMA-AT COMMA-DOT)))
+     (cl:values form nil t))
+    ((consp form)
+     (MULTIPLE-VALUE-BIND (car car-changed car-unsupported)
+	 (collapse-nested-bq-commas (car form))
+       (MULTIPLE-VALUE-BIND (cdr cdr-changed cdr-unsupported)
+	   (collapse-nested-bq-commas (cdr form))
+	 (cl:values (cons car cdr)
+		    (or car-changed cdr-changed)
+		    (or car-unsupported cdr-unsupported)))))
+    (t
+     (cl:values form nil nil))))
+
 (defun expand-bq (form)
   (cond
     ((consp form)
@@ -710,6 +738,12 @@
 	(second form))
        ((COMMA-AT COMMA-DOT)
 	(ERROR "Syntax error in backquote."))
+	(BACKQUOTE
+	 (MULTIPLE-VALUE-BIND (collapsed changed unsupported)
+	     (collapse-nested-bq-commas (second form))
+	   (if (and changed (not unsupported))
+	       `(LIST (QUOTE QUOTE) ,(optimize-bq (expand-bq collapsed)))
+	       (cons 'APPEND (expand-bq-list form)))))
        (t
 	(cons 'APPEND (expand-bq-list form)))))
     ((SIMPLE-VECTOR-P form)

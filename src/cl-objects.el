@@ -261,6 +261,7 @@
 (defconst +pathname-class+     (make-built-in-class 'PATHNAME))
 (defconst +ratio-class+	       (make-built-in-class 'RATIO '(RATIONAL)))
 (defconst +rational-class+     (make-built-in-class 'RATIONAL '(REAL)))
+(defconst +random-state-class+ (make-built-in-class 'RANDOM-STATE))
 (defconst +real-class+	       (make-built-in-class 'REAL '(NUMBER)))
 (defconst +readtable-class+    (make-built-in-class 'READTABLE))
 ;(defconst +restart-class+     (make-standard-class 'RESTART))
@@ -507,8 +508,20 @@
 
 ;;; TODO: Macro DEFGENERIC
 (cl:defmacro DEFGENERIC (name lambda-list &rest stuff)
-  `(ENSURE-GENERIC-FUNCTION (QUOTE ,name)
-			    ,(kw LAMBDA-LIST) (QUOTE ,lambda-list)))
+  (let ((methods nil))
+    (dolist (option stuff)
+      (when (and (consp option) (eq (first option) (kw METHOD)))
+	(unless (listp (second option))
+	  (ERROR "Method qualifiers are not implemented."))
+	(push `(ensure-method (QUOTE ,name)
+			      (QUOTE ,(second option))
+			      (QUOTE ,(cddr option)))
+	      methods)))
+    `(PROGN
+       (ENSURE-GENERIC-FUNCTION (QUOTE ,name)
+				,(kw LAMBDA-LIST) (QUOTE ,lambda-list))
+       ,@(nreverse methods)
+       (FDEFINITION (QUOTE ,name)))))
 
 (defmacro cl:defgeneric (name lambda-list &rest stuff)
   (when byte-compile-warnings
@@ -611,6 +624,22 @@
 ;;; TODO: Standard Generic Function COMPUTE-APPLICABLE-METHODS
 ;;; TODO: Macro DEFINE-METHOD-COMBINATION
 ;;; TODO: Standard Generic Function FIND-METHOD
+(cl:defun FIND-METHOD (generic-function method-qualifiers specializers
+			       &OPTIONAL (errorp t))
+  (let ((method
+	 (find-if
+	  (lambda (method)
+	    (and (EQUAL method-qualifiers (method-qualifiers method))
+		 (= (length specializers)
+		    (length (method-specializers method)))
+		 (EVERY #'EQ specializers (method-specializers method))))
+	  (gf-methods generic-function))))
+    (cond
+      (method method)
+      (errorp
+	(ERROR "No method for ~A with qualifiers ~A and specializers ~A."
+	       generic-function method-qualifiers specializers))
+      (t nil))))
 
 ;;; MOP
 (defun SET-FUNCALLABLE-INSTANCE-FUNCTION (gf fn)
@@ -728,7 +757,7 @@
 	((bit-vector bool-vector)
 			+bit-vector-class+)
 	(subr		+function-class+)
-	(compiled-function
+	((compiled-function byte-code-function)
 			(let ((info (gethash object *funcallable-objects*)))
 			  (if info
 			      (FIND-CLASS (car info))

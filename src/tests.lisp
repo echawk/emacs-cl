@@ -52,23 +52,25 @@
     (format t "~&Test ~A: " name)
     (write-string "                                        " nil
 		  :start (length name))
-    (if (deftest-equal (ignore-errors (eval form)) result)
-	(incf *pass*)
+    (let ((actual (ignore-errors (eval form))))
+      (if (deftest-equal actual result)
+	  (incf *pass*)
 	(progn
-	  (princ "FAIL evaluation ")
+	  (format t "FAIL evaluation (got ~S, expected ~S) " actual result)
 	  (incf *fail-eval*)
-	  (setq pass nil)))
+	  (setq pass nil))))
     ;;(format t "~& -> ~A <-~%" (el:|compile2| `(lambda () ,form)))
     (let ((fn (ignore-all-errors (compile nil `(lambda () ,form)))))
       (cond
 	(fn
 	 (incf *pass*)
-	 (if (deftest-equal (ignore-all-errors (funcall fn)) result)
-	     (incf *pass*)
+	 (let ((actual (ignore-all-errors (funcall fn))))
+	   (if (deftest-equal actual result)
+	       (incf *pass*)
 	     (progn
 	       (incf *fail-exe*)
-	       (princ "FAIL execution")
-	       (setq pass nil))))
+	       (format t "FAIL execution (got ~S, expected ~S)" actual result)
+	       (setq pass nil)))))
 	(t
 	 (incf *fail-comp*)
 	 (princ "FAIL compilation ")

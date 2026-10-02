@@ -224,7 +224,7 @@
 			`(SIMPLE-BIT-VECTOR ,(length object)))
        (subr
 			'COMPILED-FUNCTION)
-       (compiled-function
+       ((compiled-function byte-code-function)
 			(let ((info (gethash object *funcallable-objects*)))
 			  (if info
 			      (car info)
