@@ -1,4 +1,4 @@
-;;;; -*- emacs-lisp -*-
+;;;; -*- mode: emacs-lisp; lexical-binding: nil -*-
 ;;;
 ;;; Copyright (C) 2003 Lars Brinkhoff.
 ;;; This file implements operators in chapter 13, Characters.

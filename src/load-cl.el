@@ -1,4 +1,4 @@
-;;;; -*- emacs-lisp -*-
+;;;; -*- mode: emacs-lisp; lexical-binding: nil -*-
 ;;;
 ;;; Copyright (C) 2003, 2004 Lars Brinkhoff.
 ;;; Functions for loading and compiling the whole system.

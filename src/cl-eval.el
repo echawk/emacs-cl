@@ -1,4 +1,4 @@
-;;;; -*- emacs-lisp -*-
+;;;; -*- mode: emacs-lisp; lexical-binding: nil -*-
 ;;;
 ;;; Copyright (C) 2003, 2004 Lars Brinkhoff.
 ;;; This file implements EVAL and environment objects.
@@ -43,13 +43,14 @@
 (define-special-operator FLET (fns &rest forms) env
   (let ((new-env (augment-environment env :function (mapcar #'first fns))))
     (dolist (fn fns)
-      (setf (lexical-function (first fn) new-env)
-	    (MULTIPLE-VALUE-BIND (body decls doc) (parse-body (cddr fn) t)
-	      (enclose `(LAMBDA ,(second fn)
-			  ,@(when decls `((DECLARE ,@decls)))
-			  (BLOCK ,(function-block-name (first fn))
-			    ,@body))
-		       env (first fn) doc))))
+      (set-lexical-function
+       (first fn) new-env
+       (MULTIPLE-VALUE-BIND (body decls doc) (parse-body (cddr fn) t)
+	 (enclose `(LAMBDA ,(second fn)
+		     ,@(when decls `((DECLARE ,@decls)))
+		     (BLOCK ,(function-block-name (first fn))
+		       ,@body))
+		  env (first fn) doc))))
     (MULTIPLE-VALUE-BIND (body declarations) (parse-body forms)
       (eval-body body new-env))))
 
@@ -83,13 +84,14 @@
 (define-special-operator LABELS (fns &rest forms) env
   (let ((new-env (augment-environment env :function (mapcar #'first fns))))
     (dolist (fn fns)
-      (setf (lexical-function (first fn) new-env)
-	    (MULTIPLE-VALUE-BIND (body decls doc) (parse-body (cddr fn) t)
-	      (enclose `(LAMBDA ,(second fn)
-			  ,@(when decls `((DECLARE ,@decls)))
-			  (BLOCK ,(function-block-name (first fn))
-			    ,@body))
-		       new-env (first fn) doc))))
+      (set-lexical-function
+       (first fn) new-env
+       (MULTIPLE-VALUE-BIND (body decls doc) (parse-body (cddr fn) t)
+	 (enclose `(LAMBDA ,(second fn)
+		     ,@(when decls `((DECLARE ,@decls)))
+		     (BLOCK ,(function-block-name (first fn))
+		       ,@body))
+		  new-env (first fn) doc))))
     (MULTIPLE-VALUE-BIND (body decls) (parse-body forms)
       (eval-body body new-env))))
 
@@ -379,12 +381,15 @@
 (defun lexical-function (name env)
   (cdr-safe (assoc name (aref env 6))))
 
+(defun set-lexical-function (name env fn)
+  (let ((cons (assoc name (aref env 6))))
+    (if cons
+	(setf (cdr cons) fn)
+	(progn (aset env 6 (acons name fn (aref env 6)))
+	       fn))))
+
 (defsetf lexical-function (name env) (fn)
-  `(let ((cons (assoc ,name (aref ,env 6))))
-     (if cons
-	 (setf (cdr cons) ,fn)
-	 (progn (aset ,env 6 (acons ,name ,fn (aref ,env 6)))
-		,fn))))
+  `(set-lexical-function ,name ,env ,fn))
 
 (defun block-information (tag env)
   (when env
@@ -510,7 +515,7 @@
 
 (defun set-local-macro (name fn env)
   (augment-environment env :macro (list name))
-  (setf (lexical-function name env) fn))
+  (set-lexical-function name env fn))
 
 (defun eval-lambda-expr (lambda-expr args old-env)
   (MULTIPLE-VALUE-BIND (body decls doc) (parse-body (cddr lambda-expr) t)

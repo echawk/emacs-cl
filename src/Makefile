@@ -1,7 +1,8 @@
 # Copyright (C) 2003, 2004 Lars Brinkhoff.
 
 #EMACS = emacs19
-EMACS = emacs20
+#EMACS = emacs20
+EMACS = emacs
 #EMACS = emacs21
 #EMACS = xemacs20
 #EMACS = xemacs21

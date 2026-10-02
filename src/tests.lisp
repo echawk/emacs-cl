@@ -63,7 +63,7 @@
       (cond
 	(fn
 	 (incf *pass*)
-	 (if (deftest-equal (ignore-errors (funcall fn)) result)
+	 (if (deftest-equal (ignore-all-errors (funcall fn)) result)
 	     (incf *pass*)
 	     (progn
 	       (incf *fail-exe*)

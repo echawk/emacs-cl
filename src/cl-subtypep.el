@@ -1,4 +1,4 @@
-;;;; -*- emacs-lisp -*-
+;;;; -*- mode: emacs-lisp; lexical-binding: nil -*-
 ;;;
 ;;; Copyright (C) 2003, 2004 Lars Brinkhoff.
 ;;;
@@ -441,7 +441,7 @@
   (when (consp type)
     (case (first type)
       ((AND OR NOT)
-       (mapc #'find-new-objects (rest type)))
+       (mapc (lambda (subtype) (find-new-objects subtype env)) (rest type)))
       (EQL
        (push type *types*)
        (pushnew (second type) *subtypep-objects*))

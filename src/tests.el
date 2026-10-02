@@ -1,4 +1,4 @@
-;;;; -*- emacs-lisp -*-
+;;;; -*- mode: emacs-lisp; lexical-binding: nil -*-
 ;;;
 ;;; Copyright (C) 2003 Lars Brinkhoff.
 
