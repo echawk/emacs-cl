@@ -6,7 +6,7 @@ all:
 	$(EMACS) -batch -l load-cl.el -f compile-cl
 
 check:
-	bash test
+	./test
 
 clean:
 	rm -f *.elc

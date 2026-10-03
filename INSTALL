@@ -1,14 +1,25 @@
-To load the files, load lisp/load-cl.el into Emacs.  Warning: Loading the
-last file, populate.el, will take a while, especially on slow computers.
+Running from a checkout
+-----------------------
 
-It's important to compile the files for improved speed.  To do this,
-type "M-x compile-cl".  A Makefile is also included, so you can just
-type "make" at a shell.
+bin/emcl runs Emacs Common Lisp from the command line, much like sbcl:
 
-The code is verified to work with current GNU Emacs releases; run
-"make check" (or "bash lisp/test") to confirm it works on yours.
+  bin/emcl                              start a REPL
+  bin/emcl --load foo.lisp --eval '(main)' --non-interactive
+  bin/emcl --script foo.lisp            run a script (#! line allowed)
+  bin/emcl --help                       list all options
 
-To start an interactive session, type "M-x emacs-cl".
+It uses the `emacs' on your PATH; set EMACS to use another one.  emcl can
+be symlinked into a directory on your PATH.
 
-With the "emacs-cl" script in lisp/, it's also possible to run Emacs
-Common Lisp in batch mode.
+Inside Emacs
+------------
+
+Load lisp/load-cl.el, then type "M-x emacs-cl" for a listener buffer.
+
+Testing
+-------
+
+Run "make check" (or lisp/test) to run the test suite.
+
+Note: byte-compiling the system ("make", i.e. M-x compile-cl) currently
+produces .elc files that fail to load; run from source until that's fixed.

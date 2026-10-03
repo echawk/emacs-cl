@@ -598,6 +598,24 @@
 		(apply fn args)
 		(APPLY fn args)))))))))
 
+(defun elisp-predicate-type (predicate)
+  "The CL type an Elisp type predicate, as named in a wrong-type-argument
+error, checks for; or the predicate itself when there's no obvious one."
+  (case predicate
+    ((listp)				'LIST)
+    ((consp)				'CONS)
+    ((symbolp)				'SYMBOL)
+    ((stringp)				'STRING)
+    ((arrayp)				'ARRAY)
+    ((sequencep)			'SEQUENCE)
+    ((characterp char-or-string-p)	'CHARACTER)
+    ((integerp natnump fixnump wholenump integer-or-marker-p) 'INTEGER)
+    ((numberp number-or-marker-p)	'NUMBER)
+    ((floatp)				'FLOAT)
+    ((functionp)			'FUNCTION)
+    ((hash-table-p)			'HASH-TABLE)
+    (t					predicate)))
+
 (defun cl-debugger (&optional error args)
   (incf num-nonmacro-input-events)
   ;; error:
@@ -618,7 +636,8 @@
     ((void-function invalid-function)
 		(ERROR 'UNDEFINED-FUNCTION (kw NAME) (second args)))
     ((wrong-type-argument)
-		(ERROR 'TYPE-ERROR))
+		(ERROR 'TYPE-ERROR (kw DATUM) (third args)
+		       (kw EXPECTED-TYPE) (elisp-predicate-type (second args))))
     (no-catch
 		(ERROR 'CONTROL-ERROR))
     ((wrong-number-of-arguments no-catch wrong-type-argument)

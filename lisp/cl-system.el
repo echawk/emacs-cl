@@ -22,6 +22,21 @@
       (and (eq (READ-SEQUENCE magic stream) 4)
 	   (STRING= magic ";ELC")))))
 
+;;; Like SBCL, ignore a leading "#!" line so scripts can be loaded.
+(defun skip-shebang-line (stream)
+  (let ((c1 (READ-CHAR stream nil nil)))
+    (cond
+      ((null c1))
+      ((not (eql (CHAR-CODE c1) 35))
+       (UNREAD-CHAR c1 stream))
+      (t
+       (let ((c2 (READ-CHAR stream nil nil)))
+	 (if (and c2 (eql (CHAR-CODE c2) 33))
+	     (READ-LINE stream nil nil)
+	   (when c2
+	     (UNREAD-CHAR c2 stream))
+	   (UNREAD-CHAR c1 stream)))))))
+
 (cl:defun LOAD (file &KEY (VERBOSE *LOAD-VERBOSE*)
 		     	  (PRINT *LOAD-PRINT*)
 		     	  (IF-DOES-NOT-EXIST T)
@@ -46,6 +61,7 @@
 	       (file-has-elc-magic-p *LOAD-PATHNAME*))
 	   (load (NAMESTRING *LOAD-PATHNAME*))
 	   (WITH-OPEN-FILE (stream *LOAD-PATHNAME*)
+	     (skip-shebang-line stream)
 	     (LOAD stream (kw PRINT) PRINT)))
        (cl:values T))
       (t

@@ -1,1 +1,9 @@
-emacs -Q -batch -l load-cl.el -l batch.el -l tests.el -f test-cl
+#!/bin/sh
+# Run emacs-cl's own test suite; exits non-zero if any test fails.
+cd "$(dirname "$0")" || exit 1
+exec ../bin/emcl --non-interactive --load tests.lisp --eval '
+(el:|kill-emacs|
+  (if (zerop (+ emacs-cl-tests::*fail-eval*
+                emacs-cl-tests::*fail-comp*
+                emacs-cl-tests::*fail-exe*))
+      0 1))'

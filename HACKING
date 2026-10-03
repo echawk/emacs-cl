@@ -1,11 +1,14 @@
 Random hacking hints:
 
-To run emacs-cl's own test suite:
+To run emacs-cl's own test suite (exits non-zero on failure):
   make check
-or, from inside lisp/:
-  bash test
+or:
+  lisp/test
 or, from a running session:
   (load "tests.lisp")
+
+bin/emcl is a thin shell wrapper around lisp/emcl.el, which parses the
+command line and runs the REPL.
 
 The ansi-test/ directory (a checkout of the public ANSI Common Lisp
 conformance suite) is the longer-term target test suite; see its own

@@ -24,7 +24,8 @@ To convert a Common Lisp vector back to Emacs Lisp, call `el-vector`.
 Common Lisp strings and bit vectors should be converted by `el-string`
 and `el-bool-vector`.
 
-See [INSTALL](INSTALL) for usage instructions. See [HOWTO](HOWTO) for some
+To try it, run `bin/emcl` for a REPL (`bin/emcl --help` for options). See
+[INSTALL](INSTALL) for usage instructions. See [HOWTO](HOWTO) for some
 hints on how to do common tasks. See [HACKING](HACKING) for notes on
 working on the implementation itself, including the test suites.
 

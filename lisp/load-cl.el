@@ -97,7 +97,9 @@
 Under :emacs-cl it defines the standard COMMON-LISP symbols in place rather
 than shadowing them; USE-PACKAGE additionally exposes its extra exports."
   (message "Loading %s..." (expand-file-name "closette.lisp" dir))
-  (LOAD (expand-file-name "closette.lisp" dir))
+  ;; Discard closette's bootstrap progress messages.
+  (let ((*STANDARD-OUTPUT* (MAKE-BROADCAST-STREAM)))
+    (LOAD (expand-file-name "closette.lisp" dir)))
   (USE-PACKAGE "CLOSETTE" (FIND-PACKAGE "EMACS-CL"))
   ;; MAKE-LOAD-FORM (chapter 3) used to be defined via the old native CLOS
   ;; in cl-objects.el; its T-specialized fallback (built-in-make-load-form,
