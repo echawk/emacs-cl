@@ -67,14 +67,12 @@
     "cl-loop"
     "cl-format"
     "cl-compile"
-    "cl-objects"
     "cl-conditions"
 
     "populate"))
 
 (defvar *cl-eval-buffer-files*
   '("cl-compile"
-    "cl-objects"
     "cl-conditions"))
 
 (defun load-cl-file (file)
@@ -93,6 +91,26 @@
 	    (end-of-file t))))
     (load file)
     (message "Loaded %s..." file)))
+
+(defun load-closette (dir)
+  "Load closette (a reference CLOS/MOP implementation) as Common Lisp source.
+Under :emacs-cl it defines the standard COMMON-LISP symbols in place rather
+than shadowing them; USE-PACKAGE additionally exposes its extra exports."
+  (message "Loading %s..." (expand-file-name "closette.lisp" dir))
+  (LOAD (expand-file-name "closette.lisp" dir))
+  (USE-PACKAGE "CLOSETTE" (FIND-PACKAGE "EMACS-CL"))
+  ;; MAKE-LOAD-FORM (chapter 3) used to be defined via the old native CLOS
+  ;; in cl-objects.el; its T-specialized fallback (built-in-make-load-form,
+  ;; in cl-compile.el) is needed by COMPILE-FILE whenever it has to compile
+  ;; a literal that isn't trivially printable (e.g. shared/circular
+  ;; structure).  Re-establish it as a closette generic function.
+  (EVAL '(PROGN
+	  (DEFGENERIC MAKE-LOAD-FORM (OBJECT &OPTIONAL ENV))
+	  (DEFMETHOD MAKE-LOAD-FORM ((OBJECT T) &OPTIONAL ENV)
+	    (built-in-make-load-form OBJECT ENV))
+	  (DEFMETHOD MAKE-LOAD-FORM ((OBJECT STANDARD-OBJECT) &OPTIONAL ENV)
+	    (ERROR 'ERROR))))
+  (message "Loaded closette..."))
 
 (defun load-cl ()
   (interactive)
@@ -116,6 +134,7 @@
 	      (fset 'macroexp--obsolete-warning (lambda (&rest args) nil)))
 	    (mapc #'load-cl-file *cl-files*)
 	    (populate-packages)
+	    (load-closette (file-name-directory load-file-name))
 	    (garbage-collect))
 	(when old-byte-compile-warn-obsolete
 	  (fset 'byte-compile-warn-obsolete old-byte-compile-warn-obsolete))

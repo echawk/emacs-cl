@@ -614,9 +614,9 @@
     (range-error
 		nil)
     (void-variable
-		(ERROR 'UNBOUND-VARIABLE))
+		(ERROR 'UNBOUND-VARIABLE (kw NAME) (second args)))
     ((void-function invalid-function)
-		(ERROR 'UNDEFINED-FUNCTION))
+		(ERROR 'UNDEFINED-FUNCTION (kw NAME) (second args)))
     ((wrong-type-argument)
 		(ERROR 'TYPE-ERROR))
     (no-catch

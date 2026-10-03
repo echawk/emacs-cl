@@ -2,9 +2,11 @@
 
 Emacs Common Lisp is an implementation of Common Lisp, written in Emacs
 Lisp. It does not yet purport to conform to the ANSI standard since, among
-other things, CLOS and pretty printing are incomplete. However, most other
-Common Lisp features like lexical closures, packages, readtables, multiple
-values, bignums, adjustable arrays, etc, are present. At this stage many
+other things, pretty printing is missing and CLOS is the subset provided by
+Closette (the reference implementation from *The Art of the Metaobject
+Protocol*, vendored as `lisp/closette.lisp`). However, most other Common
+Lisp features like lexical closures, packages, readtables, multiple values,
+bignums, adjustable arrays, etc, are present. At this stage many
 bugs remain and error checking is sparse.
 
 This implementation provides a Common Lisp environment, separate from

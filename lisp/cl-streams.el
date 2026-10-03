@@ -537,3 +537,13 @@
   (MAKE-STREAM (kw direction) (kw OUTPUT)
 	       (kw write-fn)
 	         (lambda (char stream) (princ (string (el-char char))))))
+
+;;; *STANDARD-OUTPUT* (and the error/trace streams that default to it)
+;;; must never be nil: CL code loaded straight on top of load-cl.el, with
+;;; no interactive frontend (M-x emacs-cl) or batch REPL (batch.el) yet
+;;; started, can still legitimately print (e.g. informational messages
+;;; during bootstrap).  A frontend's own (setq *STANDARD-OUTPUT* ...)
+;;; still simply overrides this.
+(setq *STANDARD-OUTPUT* (make-princ-stream)
+      *ERROR-OUTPUT* *STANDARD-OUTPUT*
+      *TRACE-OUTPUT* *STANDARD-OUTPUT*)

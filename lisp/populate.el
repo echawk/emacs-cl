@@ -416,9 +416,14 @@ WRITE-STRING WRITE-TO-STRING Y-OR-N-P YES-OR-NO-P ZEROP))
 	  (UNINTERN symbol *cl-package*)))
       (MULTIPLE-VALUE-BIND (symbol found)
 	  (FIND-SYMBOL (SYMBOL-NAME sym) *emacs-cl-package*)
-	(when found
-	  (IMPORT (list symbol) *cl-package*)
-	  (EXPORT (list symbol) *cl-package*))))))
+	;; Every ANSI symbol belongs in COMMON-LISP, implemented here or not
+	;; (e.g. CALL-NEXT-METHOD, which only closette defines, later).
+	(unless found
+	  (setf (gethash (SYMBOL-NAME sym) emacs-cl-table) sym)
+	  (setf (SYMBOL-PACKAGE sym) *emacs-cl-package*)
+	  (setq symbol sym))
+	(IMPORT (list symbol) *cl-package*)
+	(EXPORT (list symbol) *cl-package*)))))
 
 
 ;;; Local variables:

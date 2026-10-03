@@ -309,7 +309,17 @@
   (disassemble fn)
   nil)
 
-;;; TODO: Standard Generic Function DOCUMENTATION, (SETF DOCUMENTATION)
+(cl:defun DOCUMENTATION (object type)
+  ;; An INTERPRETED-FUNCTION vector and a real byte-code object both
+  ;; happen to keep their docstring at index 4 (the latter by Emacs's own
+  ;; #[ARGLIST BYTECODE CONSTANTS DEPTH DOCSTRING ...] convention; see
+  ;; compile-lambda in cl-compile.el, which pushes DOC as the first body
+  ;; form so the byte compiler embeds it the same way).
+  (when (and (or (COMPILED-FUNCTION-P object) (INTERPRETED-FUNCTION-P object))
+	     (> (length object) 4))
+    (aref object 4)))
+
+(set-fun '(SETF DOCUMENTATION) (lambda (value object type) value))
 
 (cl:defun ROOM (&OPTIONAL (x (kw DEFAULT)))
   (let* ((info (garbage-collect))

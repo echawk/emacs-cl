@@ -75,13 +75,39 @@
 	      *deftype-expanders*)
      (QUOTE ,name)))
 
-;;; Redefined later.
+;;; closette is loaded at the very end of load-cl.el, long after this file.
+;;; Its private helpers (STD-INSTANCE-P, SUBCLASSP, ...) are symbols in the
+;;; CLOSETTE package, which emacs-cl represents as uninterned Elisp symbols,
+;;; so they have to be looked up by name; and its functions are interpreted
+;;; CL closures, so they must be invoked through emacs-cl's own APPLY.
+(defun clos-function (name)
+  (let ((package (and (fboundp 'FIND-PACKAGE) (FIND-PACKAGE "CLOSETTE"))))
+    (when package
+      (let ((symbol (FIND-SYMBOL name package)))
+	(and symbol (fboundp symbol) (symbol-function symbol))))))
+
+(defun clos-call (name &rest args)
+  (APPLY (clos-function name) args))
+
+;;; A class designator is a closette class metaobject: a std-instance
+;;; that round-trips through FIND-CLASS under its own CLASS-NAME.
 (defun classp (x)
-  nil)
+  (and (clos-function "STD-INSTANCE-P")
+       (clos-call "STD-INSTANCE-P" x)
+       (ignore-errors
+	 (eq (clos-call "FIND-CLASS" (clos-call "CLASS-NAME" x) nil) x))))
+
+(defun clos-find-class (name)
+  "The closette class named NAME, or nil."
+  (and (symbolp name) (clos-function "FIND-CLASS")
+       (ignore-errors (clos-call "FIND-CLASS" name nil))))
+
+(defun clos-typep (object class)
+  (and (clos-call "SUBCLASSP" (clos-call "CLASS-OF" object) class) 'T))
 
 (defun expand-type (orig-type env)
   (if (classp orig-type)
-      (CLASS-NAME orig-type)
+      (clos-call "CLASS-NAME" orig-type)
       (let* ((type (ensure-list orig-type))
 	     (fn (gethash (first type) *deftype-expanders*)))
 	(if fn

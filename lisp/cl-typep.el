@@ -176,9 +176,13 @@
 	   (error "invalid typespec: %s" type))))
     ((symbolp type)
      (let ((fn (gethash type *atomic-typespecs*)))
-       (if fn
-	   (FUNCALL fn object env)
-	   (ERROR "Invalid typespec: ~A" type))))
+       (cond
+	 (fn (FUNCALL fn object env))
+	 ;; A user-defined (closette DEFCLASS) class name isn't registered
+	 ;; in *atomic-typespecs*; fall back to the real class hierarchy.
+	 ((clos-find-class type)
+	  (clos-typep object (clos-find-class type)))
+	 (t (ERROR "Invalid typespec: ~A" type)))))
     (t
      (type-error type '(OR SYMBOL CONS CLASS)))))
 

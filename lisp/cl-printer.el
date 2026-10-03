@@ -244,14 +244,20 @@
     ((classp object)
      (PRINT-UNREADABLE-OBJECT (object stream (kw TYPE) t)
        (PRIN1 (class-name object) stream)))
-    ((subclassp (CLASS-OF object) +standard-object+)
-     (PRINT-UNREADABLE-OBJECT (object stream (kw TYPE) t (kw IDENTITY) t)))
     (t
-     ;; TODO:
+     ;; CLOS instances are handled by closette's own PRINT-OBJECT methods,
+     ;; which fall back to this function (via the T-specialized method)
+     ;; only for non-CLOS objects not already matched above.
      (if *PRINT-READABLY*
 	 (ERROR 'PRINT-NOT-READABLE (kw OBJECT) object)
 	 (WRITE-STRING "#<FIXME:UNPRINTABLE>" stream))))
   (cl:values object))
+
+;;; A plain fallback so printing works during bootstrap, before closette
+;;; (loaded at the end of load-cl.el) redefines PRINT-OBJECT as a true
+;;; generic function with this as its T-specialized method.
+(defun PRINT-OBJECT (object stream)
+  (built-in-print-object object stream))
 
 (defvar *object-identities* (make-hash-table :test #'eq :weakness t))
 

@@ -459,6 +459,22 @@
     (return-from SUBTYPEP (cl:values 'T 'T)))
   (when (eq type2 'T)
     (return-from SUBTYPEP (cl:values 'T 'T)))
+  ;; A user-defined (closette DEFCLASS) class name isn't one of the atomic
+  ;; typespecs the decision procedure below knows how to reason about (it
+  ;; would need sample instances registered in *subtypep-objects*); answer
+  ;; directly from the real class hierarchy instead.  Built-in type names
+  ;; are unaffected since they're already in *atomic-typespecs*.
+  (let ((et1 (expand-type type1 env))
+	(et2 (expand-type type2 env)))
+    (when (and (symbolp et1) (symbolp et2)
+	       (not (gethash et1 *atomic-typespecs*))
+	       (not (gethash et2 *atomic-typespecs*))
+	       (clos-find-class et1) (clos-find-class et2))
+      (return-from SUBTYPEP
+	(cl:values (if (clos-call "SUBCLASSP" (clos-find-class et1)
+				  (clos-find-class et2))
+		       'T nil)
+		   'T))))
   (let ((*types* *types*)
 	(*type-val* *type-val*)
 	(*subtypep-objects* *subtypep-objects*)

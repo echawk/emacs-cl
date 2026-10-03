@@ -480,17 +480,20 @@
 
 ;;; Ensure class
 
+;; emacs-cl: allow redefining a class instead of erroring.  Closette (per
+;; its own README) never implemented update-instance-for-redefined-class,
+;; but simply refusing to redefine breaks any code re-evaluated more than
+;; once -- including emacs-cl's own test harness, which evaluates every
+;; test form once interpreted and once compiled.
 (defun ensure-class (name &rest all-keys
                           &key (metaclass the-class-standard-class)
                           &allow-other-keys)
-  (if (find-class name nil)
-      (error "Can't redefine the class named ~S." name)
-      (let ((class (apply (if (eq metaclass the-class-standard-class)
-                              #'make-instance-standard-class
-                              #'make-instance)
-                          metaclass :name name all-keys)))
-        (setf (find-class name) class)
-        class)))
+  (let ((class (apply (if (eq metaclass the-class-standard-class)
+                          #'make-instance-standard-class
+                          #'make-instance)
+                      metaclass :name name all-keys)))
+    (setf (find-class name) class)
+    class))
 
 ;;; make-instance-standard-class creates and initializes an instance of
 ;;; standard-class without falling into method lookup.  However, it cannot be

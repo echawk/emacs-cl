@@ -12,6 +12,12 @@ conformance suite) is the longer-term target test suite; see its own
 README for how it's organized. It is not yet wired up to run under
 emacs-cl.
 
+CLOS is provided by Closette (lisp/closette.lisp), loaded as Common Lisp
+source at the very end of load-cl.el.  Its private helpers live in the
+CLOSETTE package; emacs-cl represents symbols in packages other than
+EMACS-LISP as uninterned Emacs Lisp symbols, so Elisp code that needs them
+must go through FIND-SYMBOL (see clos-function in cl-types.el).
+
 Loading load-cl.el (or any other file) twice may well not work.
 Individual functions can usually be redefined (with M-C-x or similar),
 but to reload the whole system, restart Emacs and load load-cl.el.
