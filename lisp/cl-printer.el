@@ -420,10 +420,7 @@
   (WRITE-CHAR (cl-char char) *STANDARD-OUTPUT*))
 
 (defun print-float (float stream)
-  ;; http://www.common-lisp.net/paste/display/743
-  (let ((*STANDARD-OUTPUT* stream)
-	(standard-output #'write-char-to-*standard-output*))
-    (prin1 float)))
+  (WRITE-STRING (prin1-to-string float) stream))
 
 (defun print-array (array stream)
   (let ((dims (ARRAY-DIMENSIONS array)))

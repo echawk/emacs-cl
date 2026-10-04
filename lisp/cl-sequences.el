@@ -246,7 +246,7 @@
 
 (defun REVERSE (seq)
   (cond
-   ((listp seq)
+   ((or (listp seq) (stringp seq))
     (reverse seq))
    ((VECTORP seq)
     (NREVERSE (COPY-SEQ seq)))
@@ -257,6 +257,10 @@
   (cond
     ((listp seq)
      (nreverse seq))
+    ;; Swapping characters in place fails in a multibyte string whenever
+    ;; it would change a character's byte length, so make a new string.
+    ((stringp seq)
+     (reverse seq))
     ((VECTORP seq)
      (do* ((len (LENGTH seq))
 	   (end (/ len 2))

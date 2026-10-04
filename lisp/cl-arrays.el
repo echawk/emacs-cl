@@ -206,6 +206,13 @@
 	       `(ASET ,obj ,atemp ,@stemps)
 	       `(AREF ,atemp ,@stemps))))
 
+;;; ASET's body is macroexpanded when it's loaded, so these setters must
+;;; already exist.
+(defsetf SVREF (vector index) (object)
+  `(setf (aref ,vector (1+ ,index)) ,object))
+
+(defsetf BIT set-bit)
+
 (defun ASET (object array &rest subscripts)
   (cond
     ((BIT-VECTOR-P array)
@@ -354,9 +361,6 @@
 (defun SVREF (vector index)
   (aref vector (1+ index)))
 
-(defsetf SVREF (vector index) (object)
-  `(setf (aref ,vector (1+ ,index)) ,object))
-
 (DEFINE-SETF-EXPANDER SVREF (vector index)
   (let ((object (gensym))
 	(vtemp (gensym))
@@ -430,7 +434,6 @@
     (t
      (type-error array '(ARRAY ,star BIT)))))
 
-(defsetf BIT set-bit)
 
 (DEFSETF BIT set-bit)
 

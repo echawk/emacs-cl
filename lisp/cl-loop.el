@@ -489,11 +489,13 @@
 	    (WHEN ,val (RETURN-FROM ,name ,val)))
 	  body)))
 
+;;; WHILE and UNTIL are main clauses, evaluated in order with the body and
+;;; so after the FOR variables have been set, not with their end tests.
 (define-loop-clause "WHILE" ()
-  (push `(NOT ,(pop forms)) tests))
+  (push `(UNLESS ,(pop forms) (LOOP-FINISH)) body))
 
 (define-loop-clause "UNTIL" ()
-  (push (pop forms) tests))
+  (push `(WHEN ,(pop forms) (LOOP-FINISH)) body))
 
 (define-loop-clause ("IF" "WHEN") ()
   (let ((condition (pop forms))
