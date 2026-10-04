@@ -177,7 +177,8 @@
     ((symbolp type)
      (let ((fn (gethash type *atomic-typespecs*)))
        (cond
-	 (fn (FUNCALL fn object env))
+	 (fn (or (FUNCALL fn object env)
+		 (clos-instance-of-type-p object type)))
 	 ;; A user-defined (closette DEFCLASS) class name isn't registered
 	 ;; in *atomic-typespecs*; fall back to the real class hierarchy.
 	 ((clos-find-class type)

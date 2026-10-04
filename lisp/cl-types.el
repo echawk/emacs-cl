@@ -97,6 +97,26 @@
        (ignore-errors
 	 (eq (clos-call "FIND-CLASS" (clos-call "CLASS-NAME" x) nil) x))))
 
+(defun generic-function-object-p (fn)
+  "Whether FN is the function installed for a closette generic function."
+  (and (clos-function "FUNCALLABLE-INSTANCE-OF")
+       (not (eq (clos-call "FUNCALLABLE-INSTANCE-OF" fn) fn))))
+
+(defvar *std-instance-tag* nil
+  "The tag closette's DEFSTRUCT puts in slot 0 of every CLOS instance.")
+
+(defun clos-instance-p (object)
+  (and *std-instance-tag* (vectorp object) (> (length object) 0)
+       (eq (aref object 0) *std-instance-tag*)))
+
+(defun clos-instance-of-type-p (object type)
+  "Whether OBJECT is a CLOS instance of the closette class named TYPE.
+Lets e.g. a DEFINE-CONDITION subclass of ERROR satisfy (TYPEP x 'ERROR)
+although ERROR's own TYPEP predicate only knows the built-in conditions."
+  (and (clos-instance-p object)
+       (let ((class (clos-find-class type)))
+	 (and class (clos-typep object class)))))
+
 (defun clos-find-class (name)
   "The closette class named NAME, or nil."
   (and (symbolp name) (clos-function "FIND-CLASS")
@@ -203,7 +223,7 @@
 
 (cl:deftype SIMPLE-BASE-STRING (&optional n)
   (unless n (setq n star))
-  `(SIMPLE-STRING (,n)))
+  `(SIMPLE-STRING ,n))
 
 (cl:deftype SIMPLE-BIT-VECTOR (&optional n)
   (unless n (setq n star))
@@ -243,6 +263,12 @@
     (T			'BOOLEAN)
     ((0 1)		'BIT)
     (t
+     (cond
+       ((generic-function-object-p object)
+	(clos-call "CLASS-NAME" (clos-call "CLASS-OF" object)))
+       ((clos-instance-p object)
+	(clos-call "CLASS-NAME" (clos-call "CLASS-OF" object)))
+       (t
      (ecase (type-of object)
        ;; This is supposed to be an exhaustive enumeration of all
        ;; possible return values for Emacs Lisp type-of.
@@ -251,10 +277,7 @@
        (subr
 			'COMPILED-FUNCTION)
        ((compiled-function byte-code-function)
-			(let ((info (gethash object *funcallable-objects*)))
-			  (if info
-			      (car info)
-			      'COMPILED-FUNCTION)))
+			'COMPILED-FUNCTION)
        (character	'CHARACTER)
        (cons		'CONS)
        (float		'SINGLE-FLOAT)
@@ -288,7 +311,7 @@
        ;; For now, throw an error on these.
        ((buffer char-table frame marker overlay process
 	 subr window window-configuration)
-			(error "Unknown type: %s" (type-of object)))))))
+			(error "Unknown type: %s" (type-of object)))))))))
 
 ;;; TYPEP defined in cl-typep.el.
 

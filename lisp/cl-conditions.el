@@ -18,8 +18,26 @@
       (puthash ',name #',constructor *condition-constructors*)
       ',name)))
 
+;;; Conditions defined by Common Lisp code are CLOS classes; see cl-clos.el
+;;; for how they fit in with the built-in, structure-based ones above.
 (cl:defmacro DEFINE-CONDITION (name parents slots &rest options)
-  `(DEFCLASS ,name ,parents ,slots ,@options))
+  (let ((report (second (assoc (kw REPORT) options)))
+	(class-options (remove-if (lambda (option)
+				    (memq (first option)
+					  (list (kw REPORT) (kw DOCUMENTATION))))
+				  options))
+	(condition (gensym))
+	(stream (gensym)))
+    `(PROGN
+       (DEFCLASS ,name ,(or parents '(CONDITION)) ,slots ,@class-options)
+       ,@(when report
+	   `((DEFMETHOD PRINT-OBJECT ((,condition ,name) ,stream)
+	       (IF *PRINT-ESCAPE*
+		   (CALL-NEXT-METHOD)
+		   ,(if (STRINGP report)
+			`(WRITE-STRING ,report ,stream)
+			`(FUNCALL (FUNCTION ,report) ,condition ,stream))))))
+       (QUOTE ,name))))
 
 ;; (defun ensure-condition (name parents slots options)
 ;;   (ENSURE-CLASS name
@@ -237,9 +255,14 @@
 
 (defun MAKE-CONDITION (type &rest args)
   (let ((fn (gethash type *condition-constructors*)))
-    (if fn
-	(APPLY fn args)
-	(error "no such condition type"))))
+    (cond
+      (fn
+       (APPLY fn args))
+      ;; Defined with the CL DEFINE-CONDITION, which makes a CLOS class.
+      ((clos-find-class type)
+       (APPLY (clos-function "MAKE-INSTANCE") type args))
+      (t
+       (ERROR "~S is not a condition type." type)))))
 
 ;; (defun MAKE-CONDITION (type &rest args)
 ;;   (apply #'MAKE-INSTANCE type args))

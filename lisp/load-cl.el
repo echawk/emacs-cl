@@ -101,17 +101,7 @@ than shadowing them; USE-PACKAGE additionally exposes its extra exports."
   (let ((*STANDARD-OUTPUT* (MAKE-BROADCAST-STREAM)))
     (LOAD (expand-file-name "closette.lisp" dir)))
   (USE-PACKAGE "CLOSETTE" (FIND-PACKAGE "EMACS-CL"))
-  ;; MAKE-LOAD-FORM (chapter 3) used to be defined via the old native CLOS
-  ;; in cl-objects.el; its T-specialized fallback (built-in-make-load-form,
-  ;; in cl-compile.el) is needed by COMPILE-FILE whenever it has to compile
-  ;; a literal that isn't trivially printable (e.g. shared/circular
-  ;; structure).  Re-establish it as a closette generic function.
-  (EVAL '(PROGN
-	  (DEFGENERIC MAKE-LOAD-FORM (OBJECT &OPTIONAL ENV))
-	  (DEFMETHOD MAKE-LOAD-FORM ((OBJECT T) &OPTIONAL ENV)
-	    (built-in-make-load-form OBJECT ENV))
-	  (DEFMETHOD MAKE-LOAD-FORM ((OBJECT STANDARD-OBJECT) &OPTIONAL ENV)
-	    (ERROR 'ERROR))))
+  (load "cl-clos" nil t)
   (message "Loaded closette..."))
 
 (defun load-cl ()

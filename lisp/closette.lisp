@@ -239,6 +239,15 @@
 (defun (setf slot-contents) (new-value slots location)
   (setf (svref slots location) new-value))
 
+;; emacs-cl: emacs-cl has no funcallable instances, so a generic function
+;; is installed as its plain discriminating function.  Map that function
+;; back to its generic function metaobject so #'GF can be used wherever a
+;; generic function is expected (FIND-METHOD, GENERIC-FUNCTION-METHODS...).
+(defvar *funcallable-instances* (make-hash-table :test #'eq))
+
+(defun funcallable-instance-of (x)
+  (or (and (functionp x) (gethash x *funcallable-instances*)) x))
+
 (defun std-slot-value (instance slot-name)
   (let* ((location (slot-location (class-of instance) slot-name))
          (slots (std-instance-slots instance))
@@ -248,6 +257,7 @@
                slot-name instance)
         val)))
 (defun slot-value (object slot-name)
+  (setq object (funcallable-instance-of object))
   (if (eq (class-of (class-of object)) the-class-standard-class)
       (std-slot-value object slot-name)
       (slot-value-using-class (class-of object) object slot-name)))
@@ -257,6 +267,7 @@
         (slots (std-instance-slots instance)))
     (setf (slot-contents slots location) new-value)))
 (defun (setf slot-value) (new-value object slot-name)
+  (setq object (funcallable-instance-of object))
   (if (eq (class-of (class-of object)) the-class-standard-class)
       (setf (std-slot-value object slot-name) new-value)
       (setf-slot-value-using-class 
@@ -267,6 +278,7 @@
         (slots (std-instance-slots instance)))
     (not (eq secret-unbound-value (slot-contents slots location)))))
 (defun slot-boundp (object slot-name)
+  (setq object (funcallable-instance-of object))
   (if (eq (class-of (class-of object)) the-class-standard-class)
       (std-slot-boundp object slot-name)
       (slot-boundp-using-class (class-of object) object slot-name)))
@@ -277,6 +289,7 @@
     (setf (slot-contents slots location) secret-unbound-value))
   instance)
 (defun slot-makunbound (object slot-name)
+  (setq object (funcallable-instance-of object))
   (if (eq (class-of (class-of object)) the-class-standard-class)
       (std-slot-makunbound object slot-name)
       (slot-makunbound-using-class (class-of object) object slot-name)))
@@ -285,6 +298,7 @@
   (not (null (find slot-name (class-slots (class-of instance))
                    :key #'slot-definition-name))))
 (defun slot-exists-p (object slot-name)
+  (setq object (funcallable-instance-of object))
   (if (eq (class-of (class-of object)) the-class-standard-class)
       (std-slot-exists-p object slot-name)
       (slot-exists-p-using-class (class-of object) object slot-name)))
@@ -292,6 +306,7 @@
 ;;; class-of
 
 (defun class-of (x)
+  (setq x (funcallable-instance-of x))
   (if (std-instance-p x)
       (std-instance-class x)
       (built-in-class-of x)))
@@ -299,6 +314,11 @@
 ;;; N.B. This version of built-in-class-of is straightforward but very slow.
 
 (defun built-in-class-of (x)
+  ;; emacs-cl: structure instances (including the built-in conditions) get
+  ;; the class emacs-cl mirrors for each structure type; see cl-clos.el.
+  (when (el:|structurep| x)
+    (return-from built-in-class-of
+      (or (find-class (type-of x) nil) (find-class 'structure-object))))
   (typecase x
     (null                                          (find-class 'null))
     ((and symbol (not null))                       (find-class 'symbol))
@@ -309,9 +329,19 @@
     (character                                     (find-class 'character))
     (hash-table                                    (find-class 'hash-table))
     (package                                       (find-class 'package))
+    (logical-pathname                              (find-class 'logical-pathname))
     (pathname                                      (find-class 'pathname))
     (readtable                                     (find-class 'readtable))
+    (random-state                                  (find-class 'random-state))
+    (broadcast-stream                              (find-class 'broadcast-stream))
+    (concatenated-stream                           (find-class 'concatenated-stream))
+    (echo-stream                                   (find-class 'echo-stream))
+    (file-stream                                   (find-class 'file-stream))
+    (string-stream                                 (find-class 'string-stream))
+    (synonym-stream                                (find-class 'synonym-stream))
+    (two-way-stream                                (find-class 'two-way-stream))
     (stream                                        (find-class 'stream))
+    (ratio                                         (find-class 'ratio))
     ((and number (not (or integer complex float))) (find-class 'number))
     ((string *)                                    (find-class 'string))
     ((bit-vector *)                                (find-class 'bit-vector))
@@ -881,7 +911,17 @@
     (:method
      (list ':method
 	   `,(cdr option)))
+    ;; emacs-cl: only the standard method combination is implemented.
+    (:method-combination
+     (unless (eq (cadr option) 'standard)
+       (error "Method combination ~S is not supported." (cadr option)))
+     nil)
     (t (list `',(car option) `',(cadr option)))))
+
+;; emacs-cl: accept method combination definitions so code that defines
+;; them loads; a generic function that tries to use one is rejected above.
+(defmacro define-method-combination (name &rest options)
+  `',name)
 
 ;;; find-generic-function looks up a generic function by name.  It's an
 ;;; artifact of the fact that our generic function metaobjects can't legally
@@ -937,6 +977,9 @@
                  gf))
   (setf (fdefinition (generic-function-name gf))
         (generic-function-discriminating-function gf))
+  (setf (gethash (generic-function-discriminating-function gf)
+                 *funcallable-instances*)
+        gf)
   (clrhash (classes-to-emf-table gf))
   (values))
 
@@ -1434,8 +1477,22 @@
 (defclass bit-vector (vector) ())
 (defclass string (vector) ())
 (defclass complex (number) ())
-(defclass integer (number) ())
-(defclass float (number) ())
+;; emacs-cl: the rest of the ANSI built-in class hierarchy.
+(defclass real (number) ())
+(defclass rational (real) ())
+(defclass integer (rational) ())
+(defclass ratio (rational) ())
+(defclass float (real) ())
+(defclass random-state (t) ())
+(defclass structure-object (t) ())
+(defclass logical-pathname (pathname) ())
+(defclass broadcast-stream (stream) ())
+(defclass concatenated-stream (stream) ())
+(defclass echo-stream (stream) ())
+(defclass file-stream (stream) ())
+(defclass string-stream (stream) ())
+(defclass synonym-stream (stream) ())
+(defclass two-way-stream (stream) ())
 ;; 10. Define the other standard metaobject classes.
 (setq the-class-standard-gf (eval the-defclass-standard-generic-function))
 (setq the-class-standard-method (eval the-defclass-standard-method))
