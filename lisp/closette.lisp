@@ -1005,7 +1005,8 @@
   (multiple-value-bind (function-name qualifiers
                         lambda-list specializers body)
         (parse-defmethod args)
-    `(ensure-method (find-generic-function ',function-name)
+    `(ensure-method (ensure-generic-function ',function-name
+                                             :lambda-list ',lambda-list)
        :lambda-list ',lambda-list
        :qualifiers ',qualifiers
        :specializers ,(canonicalize-specializers specializers) 

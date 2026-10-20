@@ -472,6 +472,22 @@
     (push `(,(INTERN ">=") ,var ,end) tests)
     (push `(SETQ ,var (,(INTERN "1+" *cl-package*) ,var)) setters)))
 
+(define-loop-clause "INTO" ()
+  (let ((var (pop forms)))
+    (unless accumulator
+      (ERROR "LOOP INTO without a preceding accumulation clause"))
+    ;; Accumulation clauses initially use an internal marker.  Replace it in
+    ;; the state already assembled for the preceding clause.
+    (setf (loop-bindings state) (subst var accumulator (loop-bindings state))
+          (loop-body state) (subst var accumulator (loop-body state))
+          (loop-prologue state) (subst var accumulator (loop-prologue state))
+          (loop-tests state) (subst var accumulator (loop-tests state))
+          (loop-setters state) (subst var accumulator (loop-setters state))
+          (loop-steps state) (subst var accumulator (loop-steps state))
+          (loop-epilogue state) (subst var accumulator (loop-epilogue state)))
+    (setf result (subst var accumulator result)
+          accumulator var)))
+
 (define-loop-clause "ALWAYS" ()
   (let ((val (gensym)))
     (setf result T)

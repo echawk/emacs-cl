@@ -101,6 +101,14 @@
 					(kw END1) (LENGTH string))))))
   (push (if cons (cdr cons) (kw UNKNOWN-EMACS)) *FEATURES*))
 
+;; ASDF and portable libraries commonly select Unix pathname/process code
+;; through these implementation features.  They describe the Emacs host, not
+;; another Common Lisp implementation.
+(when (memq system-type '(darwin gnu/linux berkeley-unix usg-unix))
+  (pushnew (kw UNIX) *FEATURES*))
+(when (eq system-type 'darwin)
+  (pushnew (kw DARWIN) *FEATURES*))
+
 (DEFVAR *COMPILE-FILE-PATHNAME* nil)
 (DEFVAR *COMPILE-FILE-TRUENAME* nil)
 
