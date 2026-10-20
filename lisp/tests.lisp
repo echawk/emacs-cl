@@ -800,6 +800,13 @@
 	 collect (list t1 t2)))
   (nil nil nil))
 
+(deftest "conditional loop accumulators"
+  (loop for (key . values) in '((:nicknames one two) (:documentation doc))
+        when (eq key :nicknames) append values into nicknames
+        else when (eq key :documentation) collect (car values) into documentation
+        finally (return (list nicknames documentation)))
+  ((one two) (doc)))
+
 (deftest "flet and labels"
   (macrolet
       ((test (flet)

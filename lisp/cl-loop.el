@@ -241,6 +241,18 @@
        (let ((k (symbol-name (pop forms))))
 	 (unless (or (string= k "IN") (string= k "OF"))
 	   (ERROR "Unknown LOOP BEING keyword: ~A" k)))
+       (if (or (string= k "HASH-KEY") (string= k "HASH-KEYS")
+               (string= k "HASH-VALUE") (string= k "HASH-VALUES"))
+           (let ((list (gensym))
+                 (collection (pop forms)))
+             (push `((,list (MAPCAR ,(if (or (string= k "HASH-KEY")
+                                             (string= k "HASH-KEYS"))
+                                         '(FUNCTION CAR) '(FUNCTION CDR))
+                                     (hashlist ,collection)))
+                     ,var)
+                   bindings)
+             (push `(NULL ,list) tests)
+             (push `(SETQ ,var (POP ,list)) setters))
        (let ((list (gensym)))
 	 (push `((,list (package-symbols
 			 (OR (FIND-PACKAGE ,(pop forms))
@@ -264,7 +276,7 @@
 	       bindings)
 	 (push `(NULL ,list) tests)
 	 (push `(SETQ ,var (CAAR ,list)) setters)
-	 (push `(SETQ ,list (CDR ,list)) steps)))))
+	 (push `(SETQ ,list (CDR ,list)) steps))))))
   ;; TODO: this is a gross hack!
   (when (and forms
 	     (symbolp (first forms))
@@ -387,50 +399,35 @@
 
 (define-loop-clause ("COLLECT" "COLLECTING") ()
   (let ((form (pop forms)))
-    (if accumulator
-	(unless (eq accumulator *loop-collect*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-collect*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator nil)) bindings)
     (push `(PUSH ,form ,accumulator) body)
     (setf result `(NREVERSE ,accumulator))))
 
 (define-loop-clause ("APPEND" "APPENDING") ()
   (let ((form (pop forms)))
-    (if accumulator
-	(unless (eq accumulator *loop-append*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-append*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator nil)) bindings)
     (push `(SETQ ,accumulator (APPEND ,accumulator ,form)) body)
     (setf result accumulator)))
 
 (define-loop-clause ("NCONC" "NCONCING") ()
   (let ((form (pop forms)))
-    (if accumulator
-	(unless (eq accumulator *loop-nconc*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-nconc*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator nil)) bindings)
     (push `(SETQ ,accumulator (NCONC ,accumulator ,form)) body)
     (setf result accumulator)))
 
 (define-loop-clause ("COUNT" "COUNTING") ()
   (let ((form (pop forms)))
-    (if accumulator
-	(unless (eq accumulator *loop-count*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-count*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator 0)) bindings)
     (push `(WHEN ,form (INCF ,accumulator)) body)
     (setf result accumulator)))
 
 (define-loop-clause ("SUM" "SUMMING") ()
   (let ((form (pop forms)))
-    (if accumulator
-	(unless (eq accumulator *loop-sum*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-sum*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator 0)) bindings)
     (push `(INCF ,accumulator ,form) body)
     (setf result accumulator)))
@@ -438,10 +435,7 @@
 (define-loop-clause ("MAXIMIZE" "MAXIMIZING") ()
   (let ((form (pop forms))
 	(val (gensym)))
-    (if accumulator
-	(unless (eq accumulator *loop-max*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-max*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator nil)) bindings)
     (push `(SETQ ,accumulator (LET ((,val ,form))
 				(IF ,accumulator
@@ -453,10 +447,7 @@
 (define-loop-clause ("MINIMIZE" "MINIMIZING") ()
   (let ((form (pop forms))
 	(val (gensym)))
-    (if accumulator
-	(unless (eq accumulator *loop-min*)
-	  (ERROR "LOOP accumulator error"))
-	(setq accumulator *loop-min*))
+    (setq accumulator (or accumulator (gensym)))
     (push `((,accumulator nil)) bindings)
     (push `(SETQ ,accumulator (LET ((,val ,form))
 				(IF ,accumulator
@@ -477,16 +468,17 @@
     (unless accumulator
       (ERROR "LOOP INTO without a preceding accumulation clause"))
     ;; Accumulation clauses initially use an internal marker.  Replace it in
-    ;; the state already assembled for the preceding clause.
-    (setf (loop-bindings state) (subst var accumulator (loop-bindings state))
-          (loop-body state) (subst var accumulator (loop-body state))
-          (loop-prologue state) (subst var accumulator (loop-prologue state))
-          (loop-tests state) (subst var accumulator (loop-tests state))
-          (loop-setters state) (subst var accumulator (loop-setters state))
-          (loop-steps state) (subst var accumulator (loop-steps state))
-          (loop-epilogue state) (subst var accumulator (loop-epilogue state)))
+    ;; the handler's local state; DEFINE-LOOP-CLAUSE stores these values when
+    ;; the handler returns.
+    (setf bindings (subst var accumulator bindings)
+          body (subst var accumulator body)
+          prologue (subst var accumulator prologue)
+          tests (subst var accumulator tests)
+          setters (subst var accumulator setters)
+          steps (subst var accumulator steps)
+          epilogue (subst var accumulator epilogue))
     (setf result (subst var accumulator result)
-          accumulator var)))
+          accumulator nil)))
 
 (define-loop-clause "ALWAYS" ()
   (let ((val (gensym)))
@@ -517,24 +509,40 @@
   (let ((condition (pop forms))
 	(then nil)
 	(else nil))
-   (let ((s (parse-loop-clause (make-loop-state forms accumulator))))
+   (flet ((parse-actions (forms accumulator)
+            (let ((s (parse-loop-clause (make-loop-state forms accumulator))))
+              ;; INTO and AND continue the action governed by this condition.
+              (while (and (consp (loop-forms s))
+                          (member (symbol-name (first (loop-forms s)))
+                                  '("INTO" "AND")))
+                (when (string= (symbol-name (first (loop-forms s))) "AND")
+                  (pop (loop-forms s)))
+                (setq s (parse-loop-clause s)))
+              s)))
+   (let ((s (parse-actions forms accumulator)))
      (setq then (loop-body s))
      (setf (loop-body s) nil)
      (merge-loop-state s))
    (when (string= (symbol-name (first forms)) "ELSE")
      (pop forms)
-     (let ((s (parse-loop-clause (make-loop-state forms accumulator))))
+     (let ((s (parse-actions forms accumulator)))
        (setq else (loop-body s))
        (setf (loop-body s) nil)
        (merge-loop-state s)))
+   (when (string= (symbol-name (first forms)) "END")
+     (pop forms))
    (push `(IF ,condition
 	      (PROGN ,@then)
 	      ,(when else `(PROGN ,@else)))
-	 body)))
+	 body))))
 
 (define-loop-clause "UNLESS" ()
   (let ((form (pop forms)))
     (setq forms `(WHEN (NOT ,form) ,@forms))))
+
+;; END terminates an IF conditional clause.  Its branch state has already
+;; been incorporated by the IF handler.
+(define-loop-clause "END" ())
 
 (define-loop-clause ("DO" "DOING") ()
   (while (consp (first forms))
