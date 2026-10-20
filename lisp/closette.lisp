@@ -1016,7 +1016,11 @@
   `(list ,@(mapcar #'canonicalize-specializer specializers)))
 
 (defun canonicalize-specializer (specializer)
-  `(find-class ',specializer))
+  ;; EQL specializers require a dedicated metaobject for correct dispatch.
+  ;; Keep loading portable client code until that metaobject is implemented.
+  (if (and (consp specializer) (eq (car specializer) 'eql))
+      `(find-class 't)
+      `(find-class ',specializer)))
 
 (defun parse-defmethod (args)
   (let ((fn-spec (car args))
@@ -1516,6 +1520,18 @@
   instance)
 
 ;;; Slot access
+
+;; The standard slot protocol generic functions must exist before client
+;; code can specialize them, even though the standard-class accessors below
+;; still perform their own fast-path lookup.
+(defgeneric slot-missing (class instance slot-name operation &optional new-value))
+(defmethod slot-missing ((class t) instance slot-name operation
+                         &optional new-value)
+  (error "The slot ~S is missing in the object ~S." slot-name instance))
+
+(defgeneric slot-unbound (class instance slot-name))
+(defmethod slot-unbound ((class t) instance slot-name)
+  (error "The slot ~S is unbound in the object ~S." slot-name instance))
 
 (defgeneric slot-value-using-class (class instance slot-name))
 (defmethod slot-value-using-class
