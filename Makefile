@@ -1,2 +1,4 @@
+COMPILER ?= byte
+
 all check clean:
-	$(MAKE) -C lisp $@
+	$(MAKE) -C lisp $@ COMPILER=$(COMPILER)

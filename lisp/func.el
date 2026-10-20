@@ -183,14 +183,8 @@
 	(defaults (lambda-list-keyword-defaults lambda-list)))
     (when keys
       (let* ((list `(list ,@(mapcar #'load-time-symbol keys)))
-	     (keyword-list
-	      (if compile-file-p
-		  `(load-time-value ,list)
-		  `(quote ,keys)))
-	     (allow-other-keys
-	      (if compile-file-p
-		  `(kw ALLOW-OTHER-KEYS)
-		`(quote ,(keyword "ALLOW-OTHER-KEYS"))))
+	      (keyword-list list)
+	      (allow-other-keys `(emacs-cl-keyword "ALLOW-OTHER-KEYS"))
 	     (assignments
 	      (let ((i -1))
 		(mapcar (lambda (var)

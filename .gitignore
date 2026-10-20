@@ -1,4 +1,5 @@
 *~
 *.elc
+lisp/.eln/
 emacs-cl-*
 lisp/temporary.lisp

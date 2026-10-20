@@ -96,6 +96,11 @@
 ;;; the KEYWORD package.
 (defvar *initial-keywords* nil)
 
+;; Byte-compiled files cannot safely serialize the uninterned bootstrap
+;; keywords produced below: each .elc would get a distinct copy.  Keep their
+;; identities in a process-wide cache instead.
+(defvar *keyword-cache* (make-hash-table :test 'equal))
+
 ;;; Initially, this function pushes all created symbols onto
 ;;; *initial-keywords*.  Later, it will be redefined to intern symbols
 ;;; into the KEYWORD package directly.
@@ -107,7 +112,11 @@
 	  (set sym sym)
 	  sym))))
 
-(defmacro kw (name) `(load-time-value (keyword ,(symbol-name name))))
+(defun emacs-cl-keyword (name)
+  (or (gethash name *keyword-cache*)
+      (puthash name (keyword name) *keyword-cache*)))
+
+(defmacro kw (name) `(emacs-cl-keyword ,(symbol-name name)))
 
 (defun type-error (datum type)
   (ERROR 'TYPE-ERROR (kw DATUM) datum (kw EXPECTED-TYPE) type))
